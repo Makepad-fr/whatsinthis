@@ -51,7 +51,9 @@ struct ScanView: View {
                         }
                     }
 
-                    supplementarySection(metrics: metrics)
+                    if viewModel.latestSnapshot != nil {
+                        supplementarySection(metrics: metrics)
+                    }
                 }
                 .frame(maxWidth: metrics.contentMaxWidth, alignment: .top)
                 .padding(.horizontal, metrics.horizontalPadding)
@@ -111,8 +113,6 @@ struct ScanView: View {
             if let latestSnapshot = viewModel.latestSnapshot {
                 latestScanCard(snapshot: latestSnapshot)
             }
-
-            recommendationsCard
         }
     }
 
@@ -213,38 +213,6 @@ struct ScanView: View {
         }
     }
 
-    private var recommendationsCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Compare fast")
-                .font(.headline)
-            Text("When two products look similar, compare the few things that usually decide the purchase fastest.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 10)], spacing: 10) {
-                recommendationTile(
-                    title: "Sugar",
-                    detail: "Drinks, yogurt, jam",
-                    systemImage: "cube.box.fill"
-                )
-                recommendationTile(
-                    title: "Fiber",
-                    detail: "Flour, cereals",
-                    systemImage: "leaf.fill"
-                )
-                recommendationTile(
-                    title: "Additives",
-                    detail: "Snacks, sauces, beauty",
-                    systemImage: "sparkles.rectangle.stack.fill"
-                )
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, minHeight: 168, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
-
     private func latestScanCard(snapshot: RecentScanSummary) -> some View {
         Button(action: viewModel.reopenLatestScan) {
             HStack(alignment: .top, spacing: 12) {
@@ -273,21 +241,6 @@ struct ScanView: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .buttonStyle(.plain)
-    }
-
-    private func recommendationTile(title: String, detail: String, systemImage: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: systemImage)
-                .font(.subheadline.weight(.semibold))
-
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func controlButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {

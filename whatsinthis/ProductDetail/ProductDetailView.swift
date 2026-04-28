@@ -59,7 +59,6 @@ struct ProductDetailView: View {
                     }
                 }
 
-                SourceConfidenceCardView(items: viewModel.sourceConfidenceItems)
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
