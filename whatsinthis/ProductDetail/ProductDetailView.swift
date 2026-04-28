@@ -11,11 +11,13 @@ struct ProductDetailView: View {
     @StateObject var viewModel: ProductDetailViewModel
     @State private var selectedIngredient: IngredientToken?
     @State private var selectedRecommendedProduct: AnalyzedProduct?
+    @State private var showsLearnMode = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ProductHeaderView(
+            VStack(alignment: .leading, spacing: 14) {
+                ProductHeroCard(
                     imageData: viewModel.imageData,
                     name: viewModel.product.name,
                     metadata: viewModel.headerMetadata,
@@ -24,13 +26,10 @@ struct ProductDetailView: View {
                     severity: viewModel.headerStatus.severity
                 )
 
-                AtAGlanceCardView(
-                    items: viewModel.atAGlanceItems,
-                    chips: viewModel.summaryChips
-                )
+                topSummarySection
 
                 if viewModel.hasNutritionTab {
-                    NutritionSummaryView(
+                    NutritionSummaryCardView(
                         metrics: viewModel.nutritionMetrics,
                         worthNoticing: viewModel.negativeNutritionInsights,
                         goodPoints: viewModel.positiveNutritionInsights
@@ -38,7 +37,7 @@ struct ProductDetailView: View {
                 }
 
                 if viewModel.showsSwapSection {
-                    SwapIdeasView(
+                    SimilarProductsToCompareCardView(
                         title: viewModel.swapSectionTitle,
                         recommendations: viewModel.swapRecommendations,
                         isLoading: viewModel.isLoadingSwapRecommendations,
@@ -48,12 +47,19 @@ struct ProductDetailView: View {
                     }
                 }
 
-                IngredientsSectionView(
+                CompactIngredientsCardView(
                     rows: viewModel.ingredientRows,
-                    countLabel: viewModel.ingredientCountLabel
+                    countLabel: viewModel.ingredientCountLabel,
+                    showsLearnMode: showsLearnMode
                 ) { token in
                     selectedIngredient = token
+                } onToggleLearnMode: {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        showsLearnMode.toggle()
+                    }
                 }
+
+                SourceConfidenceCardView(items: viewModel.sourceConfidenceItems)
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
@@ -74,6 +80,23 @@ struct ProductDetailView: View {
         .task {
             await viewModel.loadImageIfNeeded()
             await viewModel.loadSwapRecommendationsIfNeeded()
+        }
+    }
+
+    private var topSummarySection: some View {
+        let layout = horizontalSizeClass == .regular
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+
+        return layout {
+            AtAGlanceCardView(
+                items: viewModel.atAGlanceItems,
+                chips: viewModel.summaryChips
+            )
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            WhatToCompareCardView(criteria: viewModel.comparisonCriteria)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 }

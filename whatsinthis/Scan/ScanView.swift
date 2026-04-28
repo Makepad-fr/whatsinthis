@@ -118,13 +118,13 @@ struct ScanView: View {
 
     private func header(metrics: ScanLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("What’s In This?")
+            Text("What’s in this?")
                 .font(.system(size: metrics.headerTitleSize, weight: .bold, design: .rounded))
                 .lineLimit(2)
                 .minimumScaleFactor(0.82)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Scan a barcode or product QR first. If the product database is incomplete or you’re offline, switch to the ingredient label and keep moving.")
+            Text(viewModel.latestSnapshot == nil ? "Scan the barcode first. No result? Photograph the ingredient label." : "Scan a product. Barcode first. Label photo if needed.")
                 .font(metrics.headerBodyFont)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -157,7 +157,7 @@ struct ScanView: View {
                         .font(.system(size: metrics.scanGuideIconSize))
                         .foregroundStyle(.white.opacity(0.88))
 
-                    Text(cameraController.mode == .barcode ? "Center the barcode or product QR inside the frame." : "Fill the frame with the ingredient panel.")
+                    Text(cameraController.mode == .barcode ? "Center the barcode in the frame." : "Fill the frame with the ingredient label.")
                         .font(.footnote.weight(.semibold))
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.92))
@@ -168,10 +168,8 @@ struct ScanView: View {
 
     private func controlBar(metrics: ScanLayoutMetrics) -> some View {
         VStack(spacing: 12) {
-            if case .needsOCR(let message) = viewModel.status {
-                overlayMessage(message)
-            } else if case .error(let message) = viewModel.status {
-                overlayMessage(message)
+            if let overlayStatusMessage {
+                overlayMessage(overlayStatusMessage)
             }
 
             if metrics.usesStackedControls {
@@ -189,43 +187,37 @@ struct ScanView: View {
     @ViewBuilder
     private var controlButtons: some View {
         controlButton(
-            title: cameraController.isTorchEnabled ? "Torch Off" : "Torch",
+            title: cameraController.isTorchEnabled ? "Torch off" : "Torch",
             systemImage: cameraController.isTorchEnabled ? "flashlight.off.fill" : "flashlight.on.fill",
             action: viewModel.toggleTorch
         )
 
         if cameraController.mode == .barcode {
             controlButton(
-                title: "Scan Ingredients",
+                title: "Scan label",
                 systemImage: "text.viewfinder",
                 action: viewModel.beginIngredientCapture
             )
         } else {
             controlButton(
-                title: viewModel.isProcessingCapture ? "Reading…" : "Capture Label",
+                title: viewModel.isProcessingCapture ? "Reading…" : "Photo label",
                 systemImage: "camera.circle.fill",
                 action: viewModel.captureIngredientPhoto
             )
-        }
 
-        controlButton(
-            title: cameraController.mode == .barcode ? "Need OCR?" : "Back To Barcode",
-            systemImage: cameraController.mode == .barcode ? "arrow.trianglehead.2.clockwise.rotate.90" : "arrow.uturn.backward.circle",
-            action: {
-                if cameraController.mode == .barcode {
-                    viewModel.beginIngredientCapture()
-                } else {
-                    viewModel.returnToBarcodeMode()
-                }
-            }
-        )
+            controlButton(
+                title: "Barcode",
+                systemImage: "barcode.viewfinder",
+                action: viewModel.returnToBarcodeMode
+            )
+        }
     }
 
     private var recommendationsCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Recommendations")
+            Text("Compare fast")
                 .font(.headline)
-            Text("If two products look similar on the shelf, compare the few things that usually change the buying decision fastest.")
+            Text("When two products look similar, compare the few things that usually decide the purchase fastest.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -233,17 +225,17 @@ struct ScanView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 10)], spacing: 10) {
                 recommendationTile(
                     title: "Sugar",
-                    detail: "Drinks, yogurt, cereals",
+                    detail: "Drinks, yogurt, jam",
                     systemImage: "cube.box.fill"
                 )
                 recommendationTile(
-                    title: "Sat. fat",
-                    detail: "Desserts, dairy, spreads",
-                    systemImage: "drop.fill"
+                    title: "Fiber",
+                    detail: "Flour, cereals",
+                    systemImage: "leaf.fill"
                 )
                 recommendationTile(
                     title: "Additives",
-                    detail: "Snacks, sauces, ready meals",
+                    detail: "Snacks, sauces, beauty",
                     systemImage: "sparkles.rectangle.stack.fill"
                 )
             }
@@ -340,17 +332,56 @@ struct ScanView: View {
     private var statusMessage: String {
         switch viewModel.status {
         case .idle, .scanning:
-            if let barcode = viewModel.currentBarcode {
-                return "Ready • \(barcode)"
+            if viewModel.currentBarcode != nil {
+                return "Barcode found"
             }
-            return cameraController.mode == .barcode ? "Barcode ready" : "Ingredient capture ready"
-        case .lookingUp(let message):
-            return message
+            return cameraController.mode == .barcode ? "Center barcode in frame" : "Center ingredient label"
+        case .lookingUp:
+            return cameraController.mode == .barcode ? "Looking up product…" : "Reading label…"
         case .needsOCR:
-            return "OCR fallback ready"
+            return cameraController.mode == .barcode ? "No product record found" : "Photograph ingredient label"
         case .error:
-            return "Attention needed"
+            return "Action needed"
         }
+    }
+
+    private var overlayStatusMessage: String? {
+        switch viewModel.status {
+        case .needsOCR(let message):
+            return friendlyNeedsOCRMessage(from: message)
+        case .error(let message):
+            return friendlyErrorMessage(from: message)
+        default:
+            return nil
+        }
+    }
+
+    private func friendlyNeedsOCRMessage(from raw: String) -> String {
+        let lowered = raw.lowercased()
+
+        if lowered.contains("product found") && lowered.contains("ingredient") {
+            return "Product found, but ingredients are missing. Use the label photo for a better explanation."
+        }
+
+        if lowered.contains("lookup failed") || lowered.contains("no product") || lowered.contains("no product match") {
+            return "We couldn’t find this product. Take a photo of the ingredient label and we’ll explain it anyway."
+        }
+
+        return "Take a photo of the ingredient label and we’ll explain it anyway."
+    }
+
+    private func friendlyErrorMessage(from raw: String) -> String {
+        let lowered = raw.lowercased()
+
+        if lowered.contains("generic link") || lowered.contains("unsupported format") {
+            return "This QR code is not a supported product code."
+        }
+
+        if lowered.contains("cache lookup failed") {
+            return "Local data is not ready yet. Try scanning again."
+        }
+
+        return "Something went wrong. Try the barcode again or use the label photo instead."
     }
 
     private var backgroundGradient: LinearGradient {

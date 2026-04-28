@@ -30,6 +30,12 @@ final class ProductDetailViewModel: ObservableObject {
         let systemImage: String
     }
 
+    struct ComparisonCriterion: Identifiable, Hashable {
+        let id = UUID()
+        let text: String
+        let systemImage: String
+    }
+
     struct NutritionMetric: Identifiable, Hashable {
         let id = UUID()
         let title: String
@@ -52,10 +58,18 @@ final class ProductDetailViewModel: ObservableObject {
         let token: IngredientToken
         let position: Int
         let notice: String?
+        let compactRole: String
         let whatItIs: String
         let whyItMatters: String?
         let usedFor: String?
         let severity: FlagSeverity
+    }
+
+    struct SourceConfidenceItem: Identifiable, Hashable {
+        let id = UUID()
+        let title: String
+        let detail: String
+        let systemImage: String
     }
 
     struct SwapReason: Identifiable, Hashable {
@@ -97,12 +111,16 @@ final class ProductDetailViewModel: ObservableObject {
         }
     }
 
-    private enum NutritionContext {
+    private enum MarketCategory {
+        case jam
         case dryStaple
-        case sweetSpreadOrJam
+        case yogurtOrDairy
+        case cereal
         case sweetDrink
         case biscuitsOrSweets
-        case yogurtOrDairy
+        case sauceOrCondiment
+        case readyMeal
+        case beauty
         case unknown
     }
 
@@ -133,7 +151,7 @@ final class ProductDetailViewModel: ObservableObject {
     @Published private(set) var imageData: Data?
     @Published private(set) var swapRecommendations: [SwapRecommendation] = []
     @Published private(set) var isLoadingSwapRecommendations = false
-    @Published private(set) var swapSectionTitle = "Swap ideas"
+    @Published private(set) var swapSectionTitle = "Compare with similar products"
     @Published private(set) var swapSectionStatusMessage: String?
 
     private let imageRepository: ProductImageRepository
@@ -165,7 +183,7 @@ final class ProductDetailViewModel: ObservableObject {
     }
 
     var headerMetadata: String {
-        [product.brand, product.category.displayName]
+        [product.brand, marketCategoryDisplayName]
             .compactMap { value in
                 guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
                 return value
@@ -174,9 +192,13 @@ final class ProductDetailViewModel: ObservableObject {
     }
 
     var headerStatus: HeaderStatus {
+        if product.category == .beauty {
+            return beautyHeaderStatus
+        }
+
         if let allergenText = leadingAllergenStatusText {
             let subtitle: String
-            if allergenText == "Contains wheat / gluten", nutritionContext == .dryStaple {
+            if allergenText == "Contains wheat / gluten", marketCategory == .dryStaple {
                 subtitle = "Common allergen. Expected for this product type."
             } else {
                 subtitle = "Common allergen. Check if avoiding it."
@@ -189,205 +211,103 @@ final class ProductDetailViewModel: ObservableObject {
             )
         }
 
-        if beautyMarkerCount(.fragrance) > 0 {
-            return HeaderStatus(
-                title: "Fragrance ingredients found",
-                subtitle: "Scent-related ingredients are present in the formula.",
-                severity: .caution
-            )
-        }
-
-        if beautyMarkerCount(.preservative) > 0 {
-            return HeaderStatus(
-                title: "Preservatives found",
-                subtitle: "Ingredients used to help preserve the product are present.",
-                severity: .caution
-            )
+        if let marketStatus = marketHeaderStatus {
+            return marketStatus
         }
 
         if additiveCount > 0 {
             return HeaderStatus(
                 title: "Additives found",
-                subtitle: "Some ingredients look like additives or processing aids.",
+                subtitle: "Compare additives if you are choosing between similar products.",
                 severity: .caution
-            )
-        }
-
-        if product.isOCRBacked {
-            return HeaderStatus(
-                title: "OCR result — check label accuracy",
-                subtitle: "Read from a label photo. Review ingredient text if something looks wrong.",
-                severity: .unknown
             )
         }
 
         if unknownCount > 0 {
             return HeaderStatus(
-                title: "Some ingredients need more context",
-                subtitle: "Part of the ingredient list could not be matched confidently.",
+                title: "Label explained",
+                subtitle: "Check the highlighted items before deciding.",
                 severity: .unknown
             )
         }
 
-        if let nutritionStatus = primaryNutritionHeaderStatus {
-            return nutritionStatus
+        if product.isOCRBacked {
+            return HeaderStatus(
+                title: "Label explained",
+                subtitle: "Review ingredient text if something looks wrong.",
+                severity: .unknown
+            )
         }
 
         return HeaderStatus(
-            title: "No ingredient concerns found",
-            subtitle: "Nothing in the ingredient list stands out from the available data.",
+            title: "Label explained",
+            subtitle: "Check the highlighted items before buying.",
             severity: .safe
         )
     }
 
     var atAGlanceItems: [Takeaway] {
-        var items: [Takeaway] = []
-
-        if let allergenTakeaway = leadingAllergenTakeaway {
-            items.append(allergenTakeaway)
-        } else if additiveCount > 0 {
-            items.append(
-                Takeaway(
-                    text: "Additives found",
-                    severity: .caution,
-                    systemImage: "sparkles.rectangle.stack.fill"
-                )
-            )
-        } else if beautyMarkerCount(.fragrance) > 0 {
-            items.append(
-                Takeaway(
-                    text: "Fragrance ingredients found",
-                    severity: .caution,
-                    systemImage: "sparkles"
-                )
-            )
-        } else if product.isOCRBacked {
-            items.append(
-                Takeaway(
-                    text: ocrConfidenceLabel.map { "OCR confidence: \($0)" } ?? "OCR result",
-                    severity: .unknown,
-                    systemImage: "text.viewfinder"
-                )
-            )
-        } else if unknownCount > 0 {
-            items.append(
-                Takeaway(
-                    text: "Some terms need more context",
-                    severity: .unknown,
-                    systemImage: "questionmark.circle.fill"
-                )
-            )
-        } else if let primaryNutritionTakeaway {
-            items.append(primaryNutritionTakeaway)
-        } else {
-            items.append(
-                Takeaway(
-                    text: "No ingredient concerns found",
-                    severity: .safe,
-                    systemImage: "checkmark.circle.fill"
-                )
-            )
-        }
-
-        for warning in nutritionWarningTakeaways {
-            items.append(warning)
-        }
-
-        if let simpleIngredientListTakeaway {
-            items.append(simpleIngredientListTakeaway)
-        }
-
-        if let fiber = nutrition?.fiberPer100g, fiber >= 3 {
-            items.append(
-                Takeaway(
-                    text: fiber >= 6 ? "High fiber" : "Good fiber",
-                    severity: .safe,
-                    systemImage: "leaf.fill"
-                )
-            )
-        }
-
-        if let sugar = nutrition?.sugarsPer100g, sugar <= 5 {
-            items.append(
-                Takeaway(
-                    text: "Low sugar",
-                    severity: .safe,
-                    systemImage: "checkmark.seal.fill"
-                )
-            )
-        }
-
-        if items.count < 4, hasNutritionTab {
-            items.append(
-                Takeaway(
-                    text: "Nutrition available",
-                    severity: .unknown,
-                    systemImage: "chart.bar.xaxis"
-                )
-            )
-        }
-
-        if items.count < 4, unknownCount > 0, !product.isOCRBacked {
-            items.append(
-                Takeaway(
-                    text: "Some terms need more context",
-                    severity: .unknown,
-                    systemImage: "questionmark.circle.fill"
-                )
-            )
-        }
-
-        return Array(uniqueTakeaways(items).prefix(4))
+        Array(uniqueTakeaways(categoryAwareTakeaways()).prefix(4))
     }
 
     var summaryChips: [SummaryChip] {
-        var chips: [SummaryChip] = [
-            SummaryChip(
-                text: ingredientCountLabel,
-                severity: .safe,
-                systemImage: "list.bullet"
+        Array(categoryAwareSummaryChips().prefix(4))
+    }
+
+    var comparisonCriteria: [ComparisonCriterion] {
+        comparisonCriteriaTexts.map { text in
+            ComparisonCriterion(text: text, systemImage: comparisonSymbol(for: text))
+        }
+    }
+
+    var sourceConfidenceItems: [SourceConfidenceItem] {
+        var items: [SourceConfidenceItem] = [
+            SourceConfidenceItem(
+                title: "Source",
+                detail: sourceSummaryText,
+                systemImage: "checklist"
             )
         ]
 
-        if cautionCount > 0 {
-            chips.append(
-                SummaryChip(
-                    text: "\(cautionCount) to check",
-                    severity: .caution,
-                    systemImage: "exclamationmark.circle.fill"
-                )
+        items.append(
+            SourceConfidenceItem(
+                title: "Ingredients",
+                detail: ingredientsSourceText,
+                systemImage: "list.bullet.rectangle"
             )
-        } else if unknownCount > 0 {
-            chips.append(
-                SummaryChip(
-                    text: unknownCount == 1 ? "1 item needs context" : "\(unknownCount) items need context",
-                    severity: .unknown,
-                    systemImage: "questionmark.circle.fill"
+        )
+
+        if let nutritionSourceText {
+            items.append(
+                SourceConfidenceItem(
+                    title: "Nutrition",
+                    detail: nutritionSourceText,
+                    systemImage: "chart.bar"
                 )
             )
         }
 
-        if hasNutritionTab {
-            chips.append(
-                SummaryChip(
-                    text: "Nutrition available",
-                    severity: .safe,
-                    systemImage: "chart.bar.fill"
-                )
-            )
-        }
-
-        if product.isOCRBacked {
-            chips.append(
-                SummaryChip(
-                    text: "OCR result",
-                    severity: .unknown,
+        if let ocrConfidenceText {
+            items.append(
+                SourceConfidenceItem(
+                    title: "OCR confidence",
+                    detail: ocrConfidenceText,
                     systemImage: "text.viewfinder"
                 )
             )
         }
 
-        return chips
+        if let reviewNote = sourceReviewNote {
+            items.append(
+                SourceConfidenceItem(
+                    title: "Review note",
+                    detail: reviewNote,
+                    systemImage: "info.circle"
+                )
+            )
+        }
+
+        return items
     }
 
     var showsSwapSection: Bool {
@@ -453,7 +373,7 @@ final class ProductDetailViewModel: ObservableObject {
                 NutritionMetric(
                     title: "Fiber",
                     valueText: Self.formattedValue(fiber, unit: "g"),
-                    severity: fiber >= 3 ? .safe : .unknown,
+                    severity: fiberMetricSeverity(for: fiber),
                     systemImage: "leaf.fill"
                 )
             )
@@ -464,7 +384,7 @@ final class ProductDetailViewModel: ObservableObject {
                 NutritionMetric(
                     title: "Protein",
                     valueText: Self.formattedValue(protein, unit: "g"),
-                    severity: protein >= 5 ? .safe : .unknown,
+                    severity: proteinMetricSeverity(for: protein),
                     systemImage: "bolt.heart.fill"
                 )
             )
@@ -490,11 +410,11 @@ final class ProductDetailViewModel: ObservableObject {
 
         var insights: [NutritionInsight] = []
 
-        if let fiber = nutrition.fiberPer100g, fiber >= 3 {
+        if marketCategory == .dryStaple || marketCategory == .cereal, let fiber = nutrition.fiberPer100g, fiber >= 3 {
             insights.append(
                 NutritionInsight(
                     title: "Fiber",
-                    subtitle: fiber >= 6 ? "Good fiber for this type of product." : "Contains some fiber.",
+                    subtitle: fiber >= 6 ? "Good fiber for this type of product." : "Useful fiber for this category.",
                     valueText: Self.formattedValue(fiber, unit: "g"),
                     systemImage: "leaf.fill",
                     severity: .safe
@@ -502,11 +422,11 @@ final class ProductDetailViewModel: ObservableObject {
             )
         }
 
-        if let protein = nutrition.proteinPer100g, protein >= 5 {
+        if marketCategory == .yogurtOrDairy || marketCategory == .readyMeal, let protein = nutrition.proteinPer100g, protein >= 5 {
             insights.append(
                 NutritionInsight(
                     title: "Protein",
-                    subtitle: protein >= 10 ? "Strong protein level per 100 g." : "Provides some protein.",
+                    subtitle: protein >= 10 ? "Strong protein level for this category." : "Useful protein for this category.",
                     valueText: Self.formattedValue(protein, unit: "g"),
                     systemImage: "bolt.heart.fill",
                     severity: .safe
@@ -514,25 +434,13 @@ final class ProductDetailViewModel: ObservableObject {
             )
         }
 
-        if let sugar = nutrition.sugarsPer100g, sugar <= 5 {
+        if marketCategory == .cereal || marketCategory == .yogurtOrDairy, let sugar = nutrition.sugarsPer100g, sugar <= 5 {
             insights.append(
                 NutritionInsight(
                     title: "Sugar",
-                    subtitle: "Low sugar for this product.",
+                    subtitle: "Low sugar for this category.",
                     valueText: Self.formattedValue(sugar, unit: "g"),
                     systemImage: "cube.box.fill",
-                    severity: .safe
-                )
-            )
-        }
-
-        if let salt = nutrition.saltPer100g, salt <= 0.3 {
-            insights.append(
-                NutritionInsight(
-                    title: "Salt",
-                    subtitle: "Low salt per 100 g.",
-                    valueText: Self.formattedValue(salt, unit: "g"),
-                    systemImage: "checkmark.seal.fill",
                     severity: .safe
                 )
             )
@@ -553,6 +461,7 @@ final class ProductDetailViewModel: ObservableObject {
                 token: token,
                 position: index + 1,
                 notice: ingredientNotice(for: token, allergens: allergens),
+                compactRole: compactRoleLabel(for: token, position: index),
                 whatItIs: whatItIs,
                 whyItMatters: whyItMatters,
                 usedFor: usedFor,
@@ -601,21 +510,21 @@ final class ProductDetailViewModel: ObservableObject {
             }
 
             if !recommendations.isEmpty {
-                swapSectionTitle = "Swap ideas"
+                swapSectionTitle = "Compare with similar products"
                 swapRecommendations = Array(recommendations.prefix(3))
             } else {
                 let similarOptions = candidates.compactMap { candidate in
                     buildSimilarOption(for: candidate, using: ingredientAnalyzer)
                 }
                 if !similarOptions.isEmpty {
-                    swapSectionTitle = "Similar options"
+                    swapSectionTitle = "Compare with similar products"
                     swapRecommendations = Array(similarOptions.prefix(3))
                 } else {
                     switch await applyLocalFallbackRecommendations(using: ingredientAnalyzer) {
                     case .loaded:
                         break
                     case .unavailable:
-                        swapSectionTitle = "Similar options"
+                        swapSectionTitle = "Compare with similar products"
                         swapRecommendations = []
                     }
                 }
@@ -625,7 +534,7 @@ final class ProductDetailViewModel: ObservableObject {
             case .loaded:
                 break
             case .unavailable(let cachedCount, let comparableCount):
-                swapSectionTitle = "Similar options"
+                swapSectionTitle = "Compare with similar products"
                 swapRecommendations = []
                 swapSectionStatusMessage = localFallbackFailureMessage(
                     for: error,
@@ -638,7 +547,7 @@ final class ProductDetailViewModel: ObservableObject {
             case .loaded:
                 break
             case .unavailable(let cachedCount, let comparableCount):
-                swapSectionTitle = "Similar options"
+                swapSectionTitle = "Compare with similar products"
                 swapRecommendations = []
                 if comparableCount == 0 {
                     swapSectionStatusMessage = "Similar products could not be loaded right now, and there are no comparable \(recommendationFamilyLabel) products in your recent scans yet."
@@ -798,8 +707,8 @@ final class ProductDetailViewModel: ObservableObject {
         ingredientAnalyzer != nil
     }
 
-    private var nutritionContext: NutritionContext {
-        nutritionContext(for: product)
+    private var marketCategory: MarketCategory {
+        marketCategory(for: product)
     }
 
     private var recommendationFamily: RecommendationFamily {
@@ -827,30 +736,478 @@ final class ProductDetailViewModel: ObservableObject {
         }
     }
 
-    private func nutritionContext(for candidate: NormalizedProduct) -> NutritionContext {
+    private var marketCategoryDisplayName: String {
+        switch marketCategory {
+        case .jam:
+            return "Jam"
+        case .dryStaple:
+            let text = normalized(product.name)
+            if matchesAny(of: ["flour", "farine"], in: text) {
+                return "Flour"
+            }
+            return "Dry staple"
+        case .yogurtOrDairy:
+            return "Yogurt"
+        case .cereal:
+            return "Cereal"
+        case .sweetDrink:
+            return "Drink"
+        case .biscuitsOrSweets:
+            return "Sweet snack"
+        case .sauceOrCondiment:
+            return "Sauce"
+        case .readyMeal:
+            return "Ready meal"
+        case .beauty:
+            return "Beauty"
+        case .unknown:
+            return product.category.displayName
+        }
+    }
+
+    private var beautyHeaderStatus: HeaderStatus {
+        if beautyMarkerCount(.fragrance) > 0 {
+            return HeaderStatus(
+                title: "Check sensitive-skin markers",
+                subtitle: "Fragrance ingredients are listed in the formula.",
+                severity: .caution
+            )
+        }
+
+        if beautyMarkerCount(.preservative) > 0 || beautyMarkerCount(.surfactant) > 0 {
+            return HeaderStatus(
+                title: "Check sensitive-skin markers",
+                subtitle: "Look for preservatives, alcohol, fragrance, or silicones before deciding.",
+                severity: .unknown
+            )
+        }
+
+        if product.isOCRBacked {
+            return HeaderStatus(
+                title: "Label explained",
+                subtitle: "Review ingredient text if something looks wrong.",
+                severity: .unknown
+            )
+        }
+
+        return HeaderStatus(
+            title: "Check sensitive-skin markers",
+            subtitle: "Look for fragrance allergens, alcohol, preservatives, and silicones.",
+            severity: .unknown
+        )
+    }
+
+    private var marketHeaderStatus: HeaderStatus? {
+        switch marketCategory {
+        case .jam:
+            return HeaderStatus(
+                title: jamHeadline,
+                subtitle: "Compare sugar and fruit content if choosing between jars.",
+                severity: sugarMetricSeverity(for: nutrition?.sugarsPer100g ?? 0) == .caution ? .caution : .unknown
+            )
+        case .dryStaple:
+            return HeaderStatus(
+                title: "Energy-dense dry staple.",
+                subtitle: leadingAllergenStatusText == nil ? "Check mainly if avoiding wheat or gluten." : "Common allergen. Expected for this product type.",
+                severity: leadingAllergenStatusText == nil ? .unknown : .caution
+            )
+        case .yogurtOrDairy:
+            return HeaderStatus(
+                title: "Check sugar and protein.",
+                subtitle: "Plain yogurts are usually easier to compare.",
+                severity: nutrition?.sugarsPer100g ?? 0 >= 10 ? .caution : .unknown
+            )
+        case .cereal:
+            return HeaderStatus(
+                title: "Compare sugar and fiber first.",
+                subtitle: "Higher fiber and lower sugar usually make cereals easier to choose.",
+                severity: nutrition?.sugarsPer100g ?? 0 >= 15 ? .caution : .unknown
+            )
+        case .sweetDrink:
+            return HeaderStatus(
+                title: "High sugar drink.",
+                subtitle: "Compare sugar per 100 ml and sweeteners.",
+                severity: .caution
+            )
+        case .biscuitsOrSweets:
+            return HeaderStatus(
+                title: "Sweet snack.",
+                subtitle: "Compare sugar, saturated fat, and additives.",
+                severity: (nutrition?.sugarsPer100g ?? 0) >= 22.5 || (nutrition?.saturatedFatPer100g ?? 0) >= 5 ? .caution : .unknown
+            )
+        case .sauceOrCondiment:
+            return HeaderStatus(
+                title: "Check salt and sugar.",
+                subtitle: "Small portions can still add up.",
+                severity: max(nutrition?.saltPer100g ?? 0, nutrition?.sugarsPer100g ?? 0) > 0.6 ? .caution : .unknown
+            )
+        case .readyMeal:
+            return HeaderStatus(
+                title: "Check salt, sat. fat, and protein.",
+                subtitle: "Ready meals vary a lot by nutrition balance.",
+                severity: (nutrition?.saltPer100g ?? 0) >= 0.6 || (nutrition?.saturatedFatPer100g ?? 0) >= 3 ? .caution : .unknown
+            )
+        case .beauty, .unknown:
+            return nil
+        }
+    }
+
+    private var jamHeadline: String {
+        if let sugar = nutrition?.sugarsPer100g, sugar >= 22.5 {
+            return "High sugar, typical for jam."
+        }
+
+        if let sugar = nutrition?.sugarsPer100g, sugar > 0 {
+            return "Sweet preserve."
+        }
+
+        return "Jam or fruit preserve."
+    }
+
+    private var comparisonCriteriaTexts: [String] {
+        switch marketCategory {
+        case .jam:
+            return ["Sugar", "Fruit %", "Additives"]
+        case .dryStaple:
+            return ["Fiber", "Wholegrain", "Gluten"]
+        case .yogurtOrDairy:
+            return ["Sugar", "Protein", "Fat"]
+        case .cereal:
+            return ["Sugar", "Fiber", "Additives"]
+        case .sweetDrink:
+            return ["Sugar", "Sweeteners", "Additives"]
+        case .biscuitsOrSweets:
+            return ["Sugar", "Sat. fat", "Additives"]
+        case .sauceOrCondiment:
+            return ["Salt", "Sugar", "Additives"]
+        case .readyMeal:
+            return ["Salt", "Sat. fat", "Protein"]
+        case .beauty:
+            return ["Fragrance", "Alcohol", "Preservatives"]
+        case .unknown:
+            return ["Ingredients", "Allergens", "Additives"]
+        }
+    }
+
+    private func comparisonSymbol(for text: String) -> String {
+        switch normalized(text) {
+        case "sugar":
+            return "cube.box.fill"
+        case "fruit %":
+            return "leaf.fill"
+        case "additives":
+            return "sparkles.rectangle.stack.fill"
+        case "fiber":
+            return "leaf"
+        case "wholegrain":
+            return "circle.grid.2x2.fill"
+        case "gluten":
+            return "exclamationmark.circle.fill"
+        case "protein":
+            return "bolt.heart.fill"
+        case "fat", "sat. fat":
+            return "drop.fill"
+        case "sweeteners":
+            return "sparkles"
+        case "salt":
+            return "takeoutbag.and.cup.and.straw.fill"
+        case "fragrance":
+            return "sparkles"
+        case "alcohol":
+            return "drop.triangle"
+        case "preservatives":
+            return "shield.lefthalf.filled"
+        default:
+            return "slider.horizontal.3"
+        }
+    }
+
+    private func categoryAwareTakeaways() -> [Takeaway] {
+        var items: [Takeaway] = []
+
+        switch marketCategory {
+        case .jam:
+            if let sugar = nutrition?.sugarsPer100g {
+                items.append(
+                    Takeaway(
+                        text: "\(Self.formattedValue(sugar, unit: "g")) sugar / 100g",
+                        severity: sugar >= 22.5 ? .caution : .unknown,
+                        systemImage: "cube.box.fill"
+                    )
+                )
+            }
+            if containsFruitPectin {
+                items.append(
+                    Takeaway(
+                        text: "Contains fruit pectin",
+                        severity: .safe,
+                        systemImage: "leaf.fill"
+                    )
+                )
+            }
+            if let simpleIngredientListTakeaway {
+                items.append(simpleIngredientListTakeaway)
+            }
+            if let noSaltOrFatConcernTakeaway {
+                items.append(noSaltOrFatConcernTakeaway)
+            }
+        case .dryStaple:
+            if let allergenTakeaway = leadingAllergenTakeaway {
+                items.append(allergenTakeaway)
+            }
+            if let fiberTakeaway = meaningfulFiberTakeaway {
+                items.append(fiberTakeaway)
+            }
+            items.append(
+                Takeaway(
+                    text: "Dry staple",
+                    severity: .unknown,
+                    systemImage: "shippingbox.fill"
+                )
+            )
+            if let simpleIngredientListTakeaway {
+                items.append(simpleIngredientListTakeaway)
+            }
+        case .yogurtOrDairy:
+            if let sugarTakeaway = sugarTakeaway(for: nutrition?.sugarsPer100g) {
+                items.append(sugarTakeaway)
+            }
+            if let proteinTakeaway = proteinTakeaway {
+                items.append(proteinTakeaway)
+            }
+            if let saturatedFatTakeaway = saturatedFatTakeaway(for: nutrition?.saturatedFatPer100g) {
+                items.append(saturatedFatTakeaway)
+            }
+            if additiveCount > 0 {
+                items.append(Takeaway(text: "Additives found", severity: .caution, systemImage: "sparkles.rectangle.stack.fill"))
+            }
+        case .cereal:
+            if let sugarTakeaway = sugarTakeaway(for: nutrition?.sugarsPer100g) {
+                items.append(sugarTakeaway)
+            }
+            if let fiberTakeaway = meaningfulFiberTakeaway {
+                items.append(fiberTakeaway)
+            }
+            if additiveCount > 0 {
+                items.append(Takeaway(text: "Additives found", severity: .caution, systemImage: "sparkles.rectangle.stack.fill"))
+            }
+        case .sweetDrink:
+            if let sugarTakeaway = sugarTakeaway(for: nutrition?.sugarsPer100g) {
+                items.append(sugarTakeaway)
+            }
+            if containsSweetenerIngredient {
+                items.append(Takeaway(text: "Sweeteners listed", severity: .unknown, systemImage: "sparkles"))
+            }
+            if additiveCount > 0 {
+                items.append(Takeaway(text: "Additives found", severity: .caution, systemImage: "sparkles.rectangle.stack.fill"))
+            }
+        case .biscuitsOrSweets:
+            if let sugarTakeaway = sugarTakeaway(for: nutrition?.sugarsPer100g) {
+                items.append(sugarTakeaway)
+            }
+            if let saturatedFatTakeaway = saturatedFatTakeaway(for: nutrition?.saturatedFatPer100g) {
+                items.append(saturatedFatTakeaway)
+            }
+            if additiveCount > 0 {
+                items.append(Takeaway(text: "Additives found", severity: .caution, systemImage: "sparkles.rectangle.stack.fill"))
+            }
+        case .sauceOrCondiment:
+            if let saltTakeaway = saltTakeaway(for: nutrition?.saltPer100g) {
+                items.append(saltTakeaway)
+            }
+            if let sugarTakeaway = sugarTakeaway(for: nutrition?.sugarsPer100g) {
+                items.append(sugarTakeaway)
+            }
+            if additiveCount > 0 {
+                items.append(Takeaway(text: "Additives found", severity: .caution, systemImage: "sparkles.rectangle.stack.fill"))
+            }
+        case .readyMeal:
+            if let saltTakeaway = saltTakeaway(for: nutrition?.saltPer100g) {
+                items.append(saltTakeaway)
+            }
+            if let saturatedFatTakeaway = saturatedFatTakeaway(for: nutrition?.saturatedFatPer100g) {
+                items.append(saturatedFatTakeaway)
+            }
+            if let proteinTakeaway = proteinTakeaway {
+                items.append(proteinTakeaway)
+            }
+        case .beauty:
+            if beautyMarkerCount(.fragrance) > 0 {
+                items.append(Takeaway(text: "Fragrance ingredients found", severity: .caution, systemImage: "sparkles"))
+            }
+            if beautyMarkerCount(.preservative) > 0 {
+                items.append(Takeaway(text: "Preservatives listed", severity: .unknown, systemImage: "shield.lefthalf.filled"))
+            }
+            if beautyMarkerCount(.surfactant) > 0 {
+                items.append(Takeaway(text: "Cleansing ingredients found", severity: .unknown, systemImage: "drop.fill"))
+            }
+        case .unknown:
+            if let allergenTakeaway = leadingAllergenTakeaway {
+                items.append(allergenTakeaway)
+            }
+            if additiveCount > 0 {
+                items.append(Takeaway(text: "Additives found", severity: .caution, systemImage: "sparkles.rectangle.stack.fill"))
+            }
+            if unknownCount > 0 {
+                items.append(Takeaway(text: "Some terms need more context", severity: .unknown, systemImage: "questionmark.circle.fill"))
+            }
+            if items.isEmpty {
+                items.append(Takeaway(text: "Label explained", severity: .safe, systemImage: "checkmark.circle.fill"))
+            }
+        }
+
+        if items.count < 3, product.isOCRBacked {
+            items.append(Takeaway(text: "Review label text if something looks wrong", severity: .unknown, systemImage: "text.viewfinder"))
+        }
+
+        return items
+    }
+
+    private func categoryAwareSummaryChips() -> [SummaryChip] {
+        var chips: [SummaryChip] = [
+            SummaryChip(
+                text: ingredientCountLabel,
+                severity: .unknown,
+                systemImage: "list.bullet"
+            )
+        ]
+
+        switch marketCategory {
+        case .jam:
+            if let sugar = nutrition?.sugarsPer100g {
+                chips.append(
+                    SummaryChip(
+                        text: "\(Self.formattedValue(sugar, unit: "g")) sugar / 100g",
+                        severity: sugar >= 22.5 ? .caution : .unknown,
+                        systemImage: "cube.box.fill"
+                    )
+                )
+            }
+            if containsFruitPectin {
+                chips.append(
+                    SummaryChip(
+                        text: "Fruit pectin",
+                        severity: .safe,
+                        systemImage: "leaf.fill"
+                    )
+                )
+            }
+        case .dryStaple:
+            if let fiber = nutrition?.fiberPer100g, fiber >= 3 {
+                chips.append(
+                    SummaryChip(
+                        text: "\(Self.formattedValue(fiber, unit: "g")) fiber",
+                        severity: .safe,
+                        systemImage: "leaf.fill"
+                    )
+                )
+            }
+            if isWholegrainProduct {
+                chips.append(
+                    SummaryChip(
+                        text: "Wholegrain",
+                        severity: .safe,
+                        systemImage: "circle.grid.2x2.fill"
+                    )
+                )
+            }
+        case .yogurtOrDairy:
+            if let sugar = nutrition?.sugarsPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(sugar, unit: "g")) sugar", severity: sugarMetricSeverity(for: sugar), systemImage: "cube.box.fill"))
+            }
+            if let protein = nutrition?.proteinPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(protein, unit: "g")) protein", severity: proteinMetricSeverity(for: protein), systemImage: "bolt.heart.fill"))
+            }
+        case .cereal:
+            if let sugar = nutrition?.sugarsPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(sugar, unit: "g")) sugar", severity: sugarMetricSeverity(for: sugar), systemImage: "cube.box.fill"))
+            }
+            if let fiber = nutrition?.fiberPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(fiber, unit: "g")) fiber", severity: fiberMetricSeverity(for: fiber), systemImage: "leaf.fill"))
+            }
+        case .sweetDrink:
+            if let sugar = nutrition?.sugarsPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(sugar, unit: "g")) sugar", severity: sugarMetricSeverity(for: sugar), systemImage: "cube.box.fill"))
+            }
+        case .biscuitsOrSweets:
+            if let sugar = nutrition?.sugarsPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(sugar, unit: "g")) sugar", severity: sugarMetricSeverity(for: sugar), systemImage: "cube.box.fill"))
+            }
+            if let saturatedFat = nutrition?.saturatedFatPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(saturatedFat, unit: "g")) sat. fat", severity: saturatedFatMetricSeverity(for: saturatedFat), systemImage: "drop.fill"))
+            }
+        case .sauceOrCondiment:
+            if let salt = nutrition?.saltPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(salt, unit: "g")) salt", severity: saltMetricSeverity(for: salt), systemImage: "takeoutbag.and.cup.and.straw.fill"))
+            }
+            if let sugar = nutrition?.sugarsPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(sugar, unit: "g")) sugar", severity: sugarMetricSeverity(for: sugar), systemImage: "cube.box.fill"))
+            }
+        case .readyMeal:
+            if let salt = nutrition?.saltPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(salt, unit: "g")) salt", severity: saltMetricSeverity(for: salt), systemImage: "takeoutbag.and.cup.and.straw.fill"))
+            }
+            if let protein = nutrition?.proteinPer100g {
+                chips.append(SummaryChip(text: "\(Self.formattedValue(protein, unit: "g")) protein", severity: proteinMetricSeverity(for: protein), systemImage: "bolt.heart.fill"))
+            }
+        case .beauty:
+            if beautyMarkerCount(.fragrance) > 0 {
+                chips.append(SummaryChip(text: "Fragrance", severity: .caution, systemImage: "sparkles"))
+            }
+            if beautyMarkerCount(.preservative) > 0 {
+                chips.append(SummaryChip(text: "Preservatives", severity: .unknown, systemImage: "shield.lefthalf.filled"))
+            }
+        case .unknown:
+            if cautionCount > 0 {
+                chips.append(SummaryChip(text: "\(cautionCount) to check", severity: .caution, systemImage: "exclamationmark.circle.fill"))
+            } else if unknownCount > 0 {
+                chips.append(SummaryChip(text: unknownCount == 1 ? "1 item needs context" : "\(unknownCount) items need context", severity: .unknown, systemImage: "questionmark.circle.fill"))
+            }
+        }
+
+        return chips
+    }
+
+    private func marketCategory(for candidate: NormalizedProduct) -> MarketCategory {
+        if candidate.category == .beauty {
+            return .beauty
+        }
+
         let contextText = normalized(
             ([candidate.name] + candidate.categoryTags + [candidate.ingredientText])
                 .joined(separator: " ")
         )
 
-        if matchesAny(of: ["flour", "farine", "wholemeal", "whole wheat", "semolina", "semoule", "rice", "oat", "oats", "lentil", "quinoa", "couscous", "dry pasta"], in: contextText) {
+        if matchesAny(of: ["flour", "farine", "wholemeal", "whole wheat", "semolina", "semoule", "rice", "oat", "oats", "lentil", "quinoa", "couscous", "dry pasta", "pasta", "farina"], in: contextText) {
             return .dryStaple
         }
 
         if matchesAny(of: ["jam", "jams", "confiture", "marmalade", "jelly", "preserve", "preserves", "fruit spread", "sweet spread", "pate a tartiner"], in: contextText) {
-            return .sweetSpreadOrJam
+            return .jam
         }
 
         if matchesAny(of: ["soda", "cola", "soft drink", "soft-drinks", "energy drink", "beverage", "drink", "boisson"], in: contextText) {
             return .sweetDrink
         }
 
-        if matchesAny(of: ["biscuit", "biscuits", "cookie", "cookies", "chocolate", "candy", "confectionery", "sweet", "spread", "dessert"], in: contextText) {
+        if matchesAny(of: ["yogurt", "yoghurt", "yaourt", "dairy", "milk", "fromage blanc"], in: contextText) {
+            return .yogurtOrDairy
+        }
+
+        if matchesAny(of: ["cereal", "cereals", "granola", "muesli", "breakfast cereal"], in: contextText) {
+            return .cereal
+        }
+
+        if matchesAny(of: ["biscuit", "biscuits", "cookie", "cookies", "chocolate", "candy", "confectionery", "sweet", "dessert"], in: contextText) {
             return .biscuitsOrSweets
         }
 
-        if matchesAny(of: ["yogurt", "yoghurt", "yaourt", "dairy", "milk", "fromage blanc"], in: contextText) {
-            return .yogurtOrDairy
+        if matchesAny(of: ["sauce", "ketchup", "mustard", "mayo", "mayonnaise", "condiment", "vinaigrette", "dressing"], in: contextText) {
+            return .sauceOrCondiment
+        }
+
+        if matchesAny(of: ["ready meal", "prepared meal", "frozen meal", "pizza", "lasagna", "lasagne", "meal"], in: contextText) {
+            return .readyMeal
         }
 
         return .unknown
@@ -886,7 +1243,7 @@ final class ProductDetailViewModel: ObservableObject {
             return .soda
         }
 
-        if nutritionContext(for: candidate) == .dryStaple {
+        if marketCategory(for: candidate) == .dryStaple {
             return .dryStaple
         }
 
@@ -896,7 +1253,7 @@ final class ProductDetailViewModel: ObservableObject {
     private func caloriesInsight(for value: Double?) -> NutritionInsight? {
         guard let value else { return nil }
 
-        switch nutritionContext {
+        switch marketCategory {
         case .dryStaple where value >= 250:
             return NutritionInsight(
                 title: "Calories",
@@ -905,13 +1262,21 @@ final class ProductDetailViewModel: ObservableObject {
                 systemImage: "flame.fill",
                 severity: .unknown
             )
-        case .biscuitsOrSweets where value >= 400, .sweetSpreadOrJam where value >= 400:
+        case .readyMeal where value >= 220:
+            return NutritionInsight(
+                title: "Calories",
+                subtitle: "Check the calories alongside salt, saturated fat, and protein.",
+                valueText: Self.formattedValue(value, unit: "Cal", decimals: 0),
+                systemImage: "flame.fill",
+                severity: .caution
+            )
+        case .biscuitsOrSweets where value >= 400, .jam where value >= 400:
             return NutritionInsight(
                 title: "Calories",
                 subtitle: "Energy-dense for this type of product.",
                 valueText: Self.formattedValue(value, unit: "Cal", decimals: 0),
                 systemImage: "flame.fill",
-                severity: .caution
+                severity: .unknown
             )
         default:
             guard value >= 400 else { return nil }
@@ -920,7 +1285,7 @@ final class ProductDetailViewModel: ObservableObject {
                 subtitle: "Energy-dense product.",
                 valueText: Self.formattedValue(value, unit: "Cal", decimals: 0),
                 systemImage: "flame.fill",
-                severity: .caution
+                severity: .unknown
             )
         }
     }
@@ -928,7 +1293,7 @@ final class ProductDetailViewModel: ObservableObject {
     private func sugarInsight(for value: Double?) -> NutritionInsight? {
         guard let value else { return nil }
 
-        switch nutritionContext {
+        switch marketCategory {
         case .sweetDrink where value >= 5:
             return NutritionInsight(
                 title: "Sugar",
@@ -937,7 +1302,15 @@ final class ProductDetailViewModel: ObservableObject {
                 systemImage: "cube.box.fill",
                 severity: .caution
             )
-        case .biscuitsOrSweets where value >= 22.5, .sweetSpreadOrJam where value >= 22.5:
+        case .jam where value >= 22.5:
+            return NutritionInsight(
+                title: "Sugar",
+                subtitle: "Typical for jam, but useful to compare between similar jars.",
+                valueText: Self.formattedValue(value, unit: "g"),
+                systemImage: "cube.box.fill",
+                severity: .caution
+            )
+        case .biscuitsOrSweets where value >= 22.5:
             return NutritionInsight(
                 title: "Sugar",
                 subtitle: "High sugar for this type of product.",
@@ -945,7 +1318,7 @@ final class ProductDetailViewModel: ObservableObject {
                 systemImage: "cube.box.fill",
                 severity: .caution
             )
-        case .biscuitsOrSweets where value >= 10, .sweetSpreadOrJam where value >= 10:
+        case .biscuitsOrSweets where value >= 10, .jam where value >= 10:
             return NutritionInsight(
                 title: "Sugar",
                 subtitle: "Sugary product.",
@@ -957,6 +1330,22 @@ final class ProductDetailViewModel: ObservableObject {
             return NutritionInsight(
                 title: "Sugar",
                 subtitle: "Sweetened dairy product. Check sugar.",
+                valueText: Self.formattedValue(value, unit: "g"),
+                systemImage: "cube.box.fill",
+                severity: .caution
+            )
+        case .cereal where value >= 15:
+            return NutritionInsight(
+                title: "Sugar",
+                subtitle: "Compare sugar first for breakfast cereals.",
+                valueText: Self.formattedValue(value, unit: "g"),
+                systemImage: "cube.box.fill",
+                severity: .caution
+            )
+        case .sauceOrCondiment where value >= 10:
+            return NutritionInsight(
+                title: "Sugar",
+                subtitle: "Check sugar for sauces and condiments.",
                 valueText: Self.formattedValue(value, unit: "g"),
                 systemImage: "cube.box.fill",
                 severity: .caution
@@ -989,8 +1378,8 @@ final class ProductDetailViewModel: ObservableObject {
     private func saturatedFatInsight(for value: Double?) -> NutritionInsight? {
         guard let value else { return nil }
 
-        switch nutritionContext {
-        case .biscuitsOrSweets where value >= 5, .sweetSpreadOrJam where value >= 5:
+        switch marketCategory {
+        case .biscuitsOrSweets where value >= 5:
             return NutritionInsight(
                 title: "Sat. fat",
                 subtitle: "High saturated fat for this type of product.",
@@ -998,7 +1387,7 @@ final class ProductDetailViewModel: ObservableObject {
                 systemImage: "drop.fill",
                 severity: .caution
             )
-        case .biscuitsOrSweets where value >= 1.5, .sweetSpreadOrJam where value >= 1.5:
+        case .biscuitsOrSweets where value >= 1.5:
             return NutritionInsight(
                 title: "Sat. fat",
                 subtitle: "Some saturated fat to notice.",
@@ -1021,6 +1410,14 @@ final class ProductDetailViewModel: ObservableObject {
                 valueText: Self.formattedValue(value, unit: "g"),
                 systemImage: "drop.fill",
                 severity: .unknown
+            )
+        case .readyMeal where value >= 3:
+            return NutritionInsight(
+                title: "Sat. fat",
+                subtitle: "Check saturated fat for this ready meal.",
+                valueText: Self.formattedValue(value, unit: "g"),
+                systemImage: "drop.fill",
+                severity: .caution
             )
         default:
             if value >= 5 {
@@ -1050,6 +1447,10 @@ final class ProductDetailViewModel: ObservableObject {
     private func saltInsight(for value: Double?) -> NutritionInsight? {
         guard let value else { return nil }
 
+        if marketCategory == .jam || marketCategory == .dryStaple {
+            return nil
+        }
+
         if value >= 1.5 {
             return NutritionInsight(
                 title: "Salt",
@@ -1060,7 +1461,17 @@ final class ProductDetailViewModel: ObservableObject {
             )
         }
 
-        if value >= 0.3 {
+        if marketCategory == .sauceOrCondiment && value >= 0.6 {
+            return NutritionInsight(
+                title: "Salt",
+                subtitle: "Check salt and portion size.",
+                valueText: Self.formattedValue(value, unit: "g"),
+                systemImage: "takeoutbag.and.cup.and.straw.fill",
+                severity: .caution
+            )
+        }
+
+        if value >= 0.3, marketCategory == .readyMeal || marketCategory == .sauceOrCondiment {
             return NutritionInsight(
                 title: "Salt",
                 subtitle: "Some salt to notice.",
@@ -1074,20 +1485,37 @@ final class ProductDetailViewModel: ObservableObject {
     }
 
     private func caloriesMetricSeverity(for value: Double) -> FlagSeverity {
-        switch nutritionContext {
+        switch marketCategory {
         case .dryStaple:
             return .unknown
+        case .readyMeal:
+            return value >= 220 ? .caution : .unknown
         case .biscuitsOrSweets:
             return value >= 400 ? .caution : .unknown
         default:
-            return value >= 400 ? .caution : .unknown
+            return .unknown
         }
     }
 
     private func sugarMetricSeverity(for value: Double) -> FlagSeverity {
-        switch nutritionContext {
+        switch marketCategory {
         case .sweetDrink:
             if value >= 5 { return .caution }
+        case .jam, .biscuitsOrSweets:
+            if value >= 22.5 { return .caution }
+            if value >= 10 { return .unknown }
+            return .unknown
+        case .cereal:
+            if value >= 15 { return .caution }
+            if value <= 8 { return .safe }
+            return .unknown
+        case .yogurtOrDairy:
+            if value >= 10 { return .caution }
+            if value <= 5 { return .safe }
+            return .unknown
+        case .sauceOrCondiment:
+            if value >= 10 { return .caution }
+            return .unknown
         default:
             if value >= 10 { return .caution }
         }
@@ -1100,15 +1528,61 @@ final class ProductDetailViewModel: ObservableObject {
     }
 
     private func saturatedFatMetricSeverity(for value: Double) -> FlagSeverity {
-        if value >= 5 { return .caution }
-        if value >= 1.5 { return .unknown }
-        return .safe
+        switch marketCategory {
+        case .jam, .dryStaple, .sweetDrink:
+            return .unknown
+        case .yogurtOrDairy:
+            if value >= 5 { return .caution }
+            if value <= 1.5 { return .safe }
+            return .unknown
+        case .readyMeal:
+            if value >= 3 { return .caution }
+            if value <= 1.5 { return .unknown }
+            return .unknown
+        default:
+            if value >= 5 { return .caution }
+            if value >= 1.5 { return .unknown }
+            return .safe
+        }
     }
 
     private func saltMetricSeverity(for value: Double) -> FlagSeverity {
-        if value >= 1.5 { return .caution }
-        if value >= 0.3 { return .unknown }
-        return .safe
+        switch marketCategory {
+        case .jam, .dryStaple, .yogurtOrDairy, .biscuitsOrSweets:
+            return .unknown
+        case .readyMeal, .sauceOrCondiment:
+            if value >= 1.5 { return .caution }
+            if value >= 0.3 { return .unknown }
+            return .safe
+        default:
+            if value >= 1.5 { return .caution }
+            if value >= 0.3 { return .unknown }
+            return .unknown
+        }
+    }
+
+    private func fiberMetricSeverity(for value: Double) -> FlagSeverity {
+        switch marketCategory {
+        case .dryStaple, .cereal:
+            if value >= 6 { return .safe }
+            if value >= 3 { return .safe }
+            return .unknown
+        default:
+            return .unknown
+        }
+    }
+
+    private func proteinMetricSeverity(for value: Double) -> FlagSeverity {
+        switch marketCategory {
+        case .yogurtOrDairy, .readyMeal:
+            if value >= 10 { return .safe }
+            if value >= 5 { return .safe }
+            return .unknown
+        case .dryStaple:
+            return value >= 10 ? .safe : .unknown
+        default:
+            return .unknown
+        }
     }
 
     private func ingredientNotice(for token: IngredientToken, allergens: [String]) -> String? {
@@ -1140,14 +1614,20 @@ final class ProductDetailViewModel: ObservableObject {
     private func sugarTakeaway(for value: Double?) -> Takeaway? {
         guard let value else { return nil }
 
-        switch nutritionContext {
+        switch marketCategory {
         case .sweetDrink where value >= 5:
             return Takeaway(text: "High sugar drink", severity: .caution, systemImage: "cube.box.fill")
-        case .biscuitsOrSweets where value >= 22.5, .sweetSpreadOrJam where value >= 22.5:
+        case .jam where value >= 22.5:
             return Takeaway(text: "High sugar", severity: .caution, systemImage: "cube.box.fill")
-        case .biscuitsOrSweets where value >= 10, .sweetSpreadOrJam where value >= 10:
+        case .biscuitsOrSweets where value >= 22.5:
+            return Takeaway(text: "High sugar", severity: .caution, systemImage: "cube.box.fill")
+        case .biscuitsOrSweets where value >= 10, .jam where value >= 10:
             return Takeaway(text: "Sugary product", severity: .unknown, systemImage: "cube.box.fill")
         case .yogurtOrDairy where value >= 10:
+            return Takeaway(text: "Check sugar", severity: .caution, systemImage: "cube.box.fill")
+        case .cereal where value >= 15:
+            return Takeaway(text: "Compare sugar first", severity: .caution, systemImage: "cube.box.fill")
+        case .sauceOrCondiment where value >= 10:
             return Takeaway(text: "Check sugar", severity: .caution, systemImage: "cube.box.fill")
         default:
             if value >= 22.5 {
@@ -1165,6 +1645,10 @@ final class ProductDetailViewModel: ObservableObject {
     private func saturatedFatTakeaway(for value: Double?) -> Takeaway? {
         guard let value else { return nil }
 
+        if marketCategory == .jam || marketCategory == .dryStaple || marketCategory == .sweetDrink {
+            return nil
+        }
+
         if value >= 5 {
             return Takeaway(text: "High sat. fat", severity: .caution, systemImage: "drop.fill")
         }
@@ -1178,6 +1662,10 @@ final class ProductDetailViewModel: ObservableObject {
 
     private func saltTakeaway(for value: Double?) -> Takeaway? {
         guard let value else { return nil }
+
+        if marketCategory == .jam || marketCategory == .dryStaple {
+            return nil
+        }
 
         if value >= 1.5 {
             return Takeaway(text: "High salt", severity: .caution, systemImage: "takeoutbag.and.cup.and.straw.fill")
@@ -1222,7 +1710,7 @@ final class ProductDetailViewModel: ObservableObject {
             analyzedProduct: analyzedCandidate,
             title: analyzedCandidate.product.name,
             subtitle: analyzedCandidate.product.brand,
-            summary: "Similar product from the same category. Compare the nutrition and ingredient details before deciding.",
+            summary: "Same category. Compare the listed nutrition and ingredients before deciding.",
             reasons: reasons,
             presentation: .similar
         )
@@ -1246,7 +1734,7 @@ final class ProductDetailViewModel: ObservableObject {
 #if DEBUG
             print("[WIT Similar] local-fallback swap-ideas=\(swapIdeas.count)")
 #endif
-            swapSectionTitle = "Swap ideas"
+            swapSectionTitle = "Compare with similar products"
             swapRecommendations = Array(swapIdeas.prefix(3))
             swapSectionStatusMessage = nil
             return .loaded
@@ -1260,7 +1748,7 @@ final class ProductDetailViewModel: ObservableObject {
 #if DEBUG
             print("[WIT Similar] local-fallback similar-options=\(similarOptions.count)")
 #endif
-            swapSectionTitle = "Similar options"
+            swapSectionTitle = "Compare with similar products"
             swapRecommendations = Array(similarOptions.prefix(3))
             swapSectionStatusMessage = nil
             return .loaded
@@ -1617,9 +2105,9 @@ final class ProductDetailViewModel: ObservableObject {
         let reasonTexts = reasons.prefix(2).map { $0.text.lowercased() }
         let summary: String
         if reasonTexts.count >= 2 {
-            summary = "Compared with \(product.name), this one has \(reasonTexts[0]) and \(reasonTexts[1])."
+            summary = "Same category · \(reasonTexts[0]) and \(reasonTexts[1])."
         } else if let first = reasonTexts.first {
-            summary = "Compared with \(product.name), this one has \(first)."
+            summary = "Same category · \(first)."
         } else {
             summary = ""
         }
@@ -1667,6 +2155,128 @@ final class ProductDetailViewModel: ObservableObject {
         return Array(reasons.prefix(3))
     }
 
+    private var meaningfulFiberTakeaway: Takeaway? {
+        guard let fiber = nutrition?.fiberPer100g, fiber >= 3 else { return nil }
+
+        switch marketCategory {
+        case .dryStaple, .cereal:
+            return Takeaway(
+                text: fiber >= 6 ? "Good fiber" : "Useful fiber",
+                severity: .safe,
+                systemImage: "leaf.fill"
+            )
+        default:
+            return nil
+        }
+    }
+
+    private var proteinTakeaway: Takeaway? {
+        guard let protein = nutrition?.proteinPer100g else { return nil }
+
+        switch marketCategory {
+        case .yogurtOrDairy, .readyMeal:
+            if protein >= 10 {
+                return Takeaway(text: "Strong protein", severity: .safe, systemImage: "bolt.heart.fill")
+            }
+            if protein >= 5 {
+                return Takeaway(text: "Protein amount", severity: .unknown, systemImage: "bolt.heart.fill")
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private var containsFruitPectin: Bool {
+        ingredients.contains { token in
+            let text = token.normalizedText
+            return text.contains("pectine") || text.contains("pectin")
+        }
+    }
+
+    private var noSaltOrFatConcernTakeaway: Takeaway? {
+        guard marketCategory == .jam else { return nil }
+        let lowSalt = (nutrition?.saltPer100g ?? 0) <= 0.3
+        let lowSatFat = (nutrition?.saturatedFatPer100g ?? 0) <= 1.5
+        guard lowSalt && lowSatFat else { return nil }
+
+        return Takeaway(
+            text: "No salt/fat concern",
+            severity: .safe,
+            systemImage: "checkmark.circle.fill"
+        )
+    }
+
+    private var containsSweetenerIngredient: Bool {
+        ingredients.contains { token in
+            let text = token.normalizedText
+            return text.contains("sweetener") || text.contains("sucralose") || text.contains("aspartame") || text.contains("acesulfame") || text.contains("stevia")
+        }
+    }
+
+    private var isWholegrainProduct: Bool {
+        let context = normalized(([product.name] + ingredients.map(\.normalizedText)).joined(separator: " "))
+        return matchesAny(of: ["wholegrain", "whole grain", "wholemeal", "complet", "complete"], in: context)
+    }
+
+    private var sourceSummaryText: String {
+        switch product.source {
+        case .openFoodFacts:
+            return "Open Food Facts"
+        case .openBeautyFacts:
+            return "Open Beauty Facts"
+        case .usda:
+            return "USDA"
+        case .ocr:
+            return "Label photo"
+        case .cache:
+            return "Recent scan cache"
+        }
+    }
+
+    private var ingredientsSourceText: String {
+        switch product.ingredientsProvenance {
+        case .api:
+            return "Product database"
+        case .ocr:
+            return "Label photo"
+        case .glossary:
+            return "Offline glossary match"
+        case .inferred:
+            return "Rule-based ingredient match"
+        }
+    }
+
+    private var nutritionSourceText: String? {
+        guard nutrition?.hasAnyValue == true else { return nil }
+
+        switch product.source {
+        case .openFoodFacts, .openBeautyFacts, .usda:
+            return "Product database"
+        case .ocr:
+            return "Matched product record when available"
+        case .cache:
+            return "Saved product record"
+        }
+    }
+
+    private var ocrConfidenceText: String? {
+        guard product.isOCRBacked else { return nil }
+        return ocrConfidenceLabel.map { "\($0). Review the label if something looks off." } ?? "Review the label if something looks off."
+    }
+
+    private var sourceReviewNote: String? {
+        if product.source == .usda {
+            return "Ingredients may be limited in the USDA fallback record."
+        }
+
+        if product.isOCRBacked {
+            return "Some words may be wrong. Check the label if something looks unusual."
+        }
+
+        return nil
+    }
+
     private func compactWhatItIs(for token: IngredientToken) -> String {
         if let heuristic = heuristicSummary(for: token.normalizedText) {
             return heuristic
@@ -1682,6 +2292,60 @@ final class ProductDetailViewModel: ObservableObject {
         }
 
         return summary
+    }
+
+    private func compactRoleLabel(for token: IngredientToken, position: Int) -> String {
+        let normalizedToken = token.normalizedText
+
+        if normalizedToken.contains("pectine") || normalizedToken.contains("pectin") {
+            return "gelling agent"
+        }
+
+        if matchesAny(of: ["jus de citron", "lemon juice", "citric"], in: normalizedToken) {
+            return "acidity"
+        }
+
+        if matchesAny(of: ["sucre", "sugar", "sirop", "syrup", "miel", "honey"], in: normalizedToken) {
+            return "sweetener"
+        }
+
+        if matchesAny(of: ["farine", "flour"], in: normalizedToken) {
+            return isWholegrainProduct ? "wholegrain flour" : "flour"
+        }
+
+        if position == 0, matchesAny(of: ["fig", "figue", "fraise", "strawberry", "fruit", "framboise", "raspberry", "abricot", "apricot"], in: normalizedToken) {
+            return "fruit base"
+        }
+
+        if let function = token.explanation?.function {
+            let loweredFunction = normalized(function)
+            if loweredFunction.contains("texture") || loweredFunction.contains("gelling") {
+                return "texture"
+            }
+            if loweredFunction.contains("preserve") || loweredFunction.contains("shelf life") {
+                return "preservation"
+            }
+            if loweredFunction.contains("flavor") || loweredFunction.contains("taste") {
+                return "flavor"
+            }
+            if loweredFunction.contains("fragrance") || loweredFunction.contains("scent") {
+                return "fragrance"
+            }
+        }
+
+        if let usedFor = compactRole(for: token, position: position) {
+            return normalizedRoleLabel(usedFor)
+        }
+
+        return position == 0 ? "main ingredient" : "ingredient"
+    }
+
+    private func normalizedRoleLabel(_ value: String) -> String {
+        let cleaned = value
+            .replacingOccurrences(of: ".", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = cleaned.first else { return "ingredient" }
+        return first.lowercased() + cleaned.dropFirst()
     }
 
     private func compactWhyItMatters(for token: IngredientToken, allergens: [String]) -> String? {

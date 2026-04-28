@@ -234,7 +234,7 @@ struct SectionHeadingView: View {
     }
 }
 
-struct ProductHeaderView: View {
+struct ProductHeroCard: View {
     let imageData: Data?
     let name: String
     let metadata: String
@@ -246,23 +246,24 @@ struct ProductHeaderView: View {
         HStack(alignment: .top, spacing: 14) {
             ProductImageCard(
                 imageData: imageData,
-                width: 92,
-                height: 110,
-                cornerRadius: 22
+                width: 78,
+                height: 94,
+                cornerRadius: 20
             )
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(name)
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.system(size: 27, weight: .bold))
+                    .lineSpacing(1)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if !metadata.isEmpty {
                     Text(metadata)
-                        .font(.subheadline)
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
 
-                HeaderStatusView(
+                CompactHeaderStatusView(
                     title: statusTitle,
                     subtitle: statusSubtitle,
                     severity: severity
@@ -275,7 +276,7 @@ struct ProductHeaderView: View {
     }
 }
 
-struct HeaderStatusView: View {
+struct CompactHeaderStatusView: View {
     let title: String
     let subtitle: String
     let severity: FlagSeverity
@@ -283,16 +284,16 @@ struct HeaderStatusView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: leadingSymbol)
-                .font(.subheadline.weight(.bold))
+                .font(.footnote.weight(.bold))
                 .foregroundStyle(IngredientVisualStyle.accent(for: severity))
-                .frame(width: 28, height: 28)
-                .background(IngredientVisualStyle.background(for: severity), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 26, height: 26)
+                .background(IngredientVisualStyle.background(for: severity), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.headline)
+                    .font(.headline.weight(.semibold))
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -316,7 +317,7 @@ struct AtAGlanceCardView: View {
     let chips: [ProductDetailViewModel.SummaryChip]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("At a glance")
                 .font(.title3.weight(.bold))
 
@@ -348,6 +349,36 @@ struct AtAGlanceCardView: View {
     }
 }
 
+struct WhatToCompareCardView: View {
+    let criteria: [ProductDetailViewModel.ComparisonCriterion]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("What to compare")
+                .font(.headline.weight(.semibold))
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)], spacing: 8) {
+                ForEach(criteria) { item in
+                    HStack(spacing: 8) {
+                        Image(systemName: item.systemImage)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.orange)
+                        Text(item.text)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+            }
+        }
+        .padding(18)
+        .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+}
+
 struct SummaryChipView: View {
     let chip: ProductDetailViewModel.SummaryChip
 
@@ -368,7 +399,7 @@ struct SummaryChipView: View {
     }
 }
 
-struct NutritionSummaryView: View {
+struct NutritionSummaryCardView: View {
     let metrics: [ProductDetailViewModel.NutritionMetric]
     let worthNoticing: [ProductDetailViewModel.NutritionInsight]
     let goodPoints: [ProductDetailViewModel.NutritionInsight]
@@ -400,7 +431,7 @@ struct NutritionSummaryView: View {
     }
 }
 
-struct SwapIdeasView: View {
+struct SimilarProductsToCompareCardView: View {
     let title: String
     let recommendations: [ProductDetailViewModel.SwapRecommendation]
     let isLoading: Bool
@@ -454,6 +485,11 @@ struct SwapIdeasView: View {
                 }
                 .padding(.horizontal, 18)
                 .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                Text("Based on product database. Availability may vary.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 2)
             }
         }
     }
@@ -688,10 +724,12 @@ struct InsightListSectionView: View {
     }
 }
 
-struct IngredientsSectionView: View {
+struct CompactIngredientsCardView: View {
     let rows: [ProductDetailViewModel.IngredientRow]
     let countLabel: String
+    let showsLearnMode: Bool
     let onTap: (IngredientToken) -> Void
+    let onToggleLearnMode: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -701,20 +739,86 @@ struct IngredientsSectionView: View {
                 trailingText: countLabel
             )
 
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                    IngredientCompactCardView(row: row) {
-                        onTap(row.token)
+                    if showsLearnMode {
+                        IngredientCompactCardView(row: row) {
+                            onTap(row.token)
+                        }
+                    } else {
+                        CompactIngredientRow(row: row) {
+                            onTap(row.token)
+                        }
                     }
 
                     if index < rows.count - 1 {
                         Divider()
                     }
                 }
+
+                Button(action: onToggleLearnMode) {
+                    HStack(spacing: 8) {
+                        Text(showsLearnMode ? "Hide full explanation" : "See full explanation")
+                            .font(.subheadline.weight(.semibold))
+                        Image(systemName: showsLearnMode ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.bold))
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(.top, 14)
+                }
             }
             .padding(.horizontal, 18)
+            .padding(.vertical, 14)
             .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
+    }
+}
+
+struct CompactIngredientRow: View {
+    let row: ProductDetailViewModel.IngredientRow
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(IngredientVisualStyle.background(for: row.severity))
+                    Text("\(row.position)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(IngredientVisualStyle.accent(for: row.severity))
+                }
+                .frame(width: 28, height: 28)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(row.token.text)
+                            .font(.headline)
+                            .multilineTextAlignment(.leading)
+                        Text("— \(row.compactRole)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    if let notice = row.notice, row.severity != .safe {
+                        Text(notice)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(IngredientVisualStyle.accent(for: row.severity))
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 2)
+            }
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -905,6 +1009,33 @@ struct IngredientInsightRow: View {
         case .unknown:
             IngredientVisualStyle.accent(for: .unknown)
         }
+    }
+}
+
+struct SourceConfidenceCardView: View {
+    let items: [ProductDetailViewModel.SourceConfidenceItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Source and confidence")
+                .font(.headline.weight(.semibold))
+
+            VStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    SourceFactRow(
+                        title: item.title,
+                        detail: item.detail,
+                        systemImage: item.systemImage
+                    )
+
+                    if index < items.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
 
