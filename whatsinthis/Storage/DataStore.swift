@@ -54,7 +54,7 @@ final class DataStore {
         let fetch = FetchDescriptor<IngredientGlossaryEntryRecord>()
         let existingRecords = try context.fetch(fetch)
         let recordsByID = Dictionary(uniqueKeysWithValues: existingRecords.map { ($0.id, $0) })
-        let didChange = upsertGlossaryItems(items, recordsByID: recordsByID)
+        let didChange = Self.upsertGlossaryItems(items, recordsByID: recordsByID, context: context)
 
         if didChange {
             try context.save()
@@ -78,6 +78,21 @@ final class DataStore {
     }
 
     func replaceGlossaryItems(_ items: [IngredientGlossaryItem]) throws {
+        try Self.replaceGlossaryItems(items, context: context)
+    }
+
+    func replaceGlossaryItemsInBackground(_ items: [IngredientGlossaryItem]) async throws {
+        let payload = try JSONEncoder().encode(items)
+        let container = modelContainer
+
+        try await Task.detached(priority: .utility) {
+            let items = try JSONDecoder().decode([IngredientGlossaryItem].self, from: payload)
+            let context = ModelContext(container)
+            try Self.replaceGlossaryItems(items, context: context)
+        }.value
+    }
+
+    nonisolated private static func replaceGlossaryItems(_ items: [IngredientGlossaryItem], context: ModelContext) throws {
         let fetch = FetchDescriptor<IngredientGlossaryEntryRecord>()
         let existingRecords = try context.fetch(fetch)
         let recordsByID = Dictionary(uniqueKeysWithValues: existingRecords.map { ($0.id, $0) })
@@ -89,27 +104,32 @@ final class DataStore {
             didChange = true
         }
 
-        didChange = upsertGlossaryItems(items, recordsByID: recordsByID) || didChange
+        didChange = upsertGlossaryItems(items, recordsByID: recordsByID, context: context) || didChange
 
         if didChange {
             try context.save()
         }
     }
 
-    private func upsertGlossaryItems(
+    nonisolated private static func upsertGlossaryItems(
         _ items: [IngredientGlossaryItem],
-        recordsByID: [String: IngredientGlossaryEntryRecord]
+        recordsByID: [String: IngredientGlossaryEntryRecord],
+        context: ModelContext
     ) -> Bool {
         var didChange = false
 
         for item in items {
-            didChange = upsertGlossaryItem(item, existing: recordsByID[item.id]) || didChange
+            didChange = upsertGlossaryItem(item, existing: recordsByID[item.id], context: context) || didChange
         }
 
         return didChange
     }
 
-    private func upsertGlossaryItem(_ item: IngredientGlossaryItem, existing: IngredientGlossaryEntryRecord?) -> Bool {
+    nonisolated private static func upsertGlossaryItem(
+        _ item: IngredientGlossaryItem,
+        existing: IngredientGlossaryEntryRecord?,
+        context: ModelContext
+    ) -> Bool {
         let aliasesBlob = item.aliases.joined(separator: "\n")
         let markersBlob = item.markers.map(\.rawValue).joined(separator: "\n")
 

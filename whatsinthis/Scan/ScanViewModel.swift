@@ -210,10 +210,10 @@ final class ScanViewModel: ObservableObject {
         }
 
         do {
-            try dataStore.replaceGlossaryItems(remoteGlossary)
-            ingredientAnalyzer.updateGlossary(try dataStore.glossaryItems())
+            ingredientAnalyzer.updateGlossary(remoteGlossary)
+            try await dataStore.replaceGlossaryItemsInBackground(remoteGlossary)
         } catch {
-            // Keep the bundled glossary if the remote refresh cannot be persisted.
+            // Keep the existing persisted fallback if the remote glossary cannot be saved.
         }
     }
 
