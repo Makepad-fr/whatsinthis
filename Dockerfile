@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-ARG GO_VERSION=1.26
+ARG GO_VERSION=1.25
 ARG DHI_STATIC_TAG=20250419-debian13
 
 FROM dhi.io/golang:${GO_VERSION}-debian13-dev AS backend-base
