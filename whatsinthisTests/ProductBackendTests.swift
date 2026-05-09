@@ -50,7 +50,7 @@ struct ProductBackendTests {
 
     @Test
     func httpTransportDecodesLookupResponse() async throws {
-        let session = Self.stubbedSession { request in
+        let stub = Self.stubbedSession { request in
             #expect(request.url?.path == "/v1/products/lookup")
             let body = try #require(request.httpBody)
             let payload = try JSONDecoder().decode(BackendProductLookupRequestDTO.self, from: body)
@@ -81,7 +81,9 @@ struct ProductBackendTests {
             """.utf8)
             return (Self.response(for: request, statusCode: 200), data)
         }
-        let transport = HTTPProductBackendTransport(baseURL: URL(string: "https://backend.example")!, session: session)
+        defer { BackendURLProtocolStub.unregister(stub.identifier) }
+
+        let transport = HTTPProductBackendTransport(baseURL: stub.baseURL, session: stub.session)
 
         let response = try await transport.lookupProduct(
             BackendProductLookupRequestDTO(barcode: "123", localeIdentifier: "fr_FR")
@@ -93,10 +95,12 @@ struct ProductBackendTests {
 
     @Test
     func httpTransportMapsRateLimit() async throws {
-        let session = Self.stubbedSession { request in
+        let stub = Self.stubbedSession { request in
             (Self.response(for: request, statusCode: 429), Data(#"{"error":"rate limited"}"#.utf8))
         }
-        let transport = HTTPProductBackendTransport(baseURL: URL(string: "https://backend.example")!, session: session)
+        defer { BackendURLProtocolStub.unregister(stub.identifier) }
+
+        let transport = HTTPProductBackendTransport(baseURL: stub.baseURL, session: stub.session)
 
         do {
             _ = try await transport.similarProducts(
@@ -113,13 +117,40 @@ struct ProductBackendTests {
         }
     }
 
+    @Test
+    func httpTransportUsesBackendErrorForLookupRateLimit() async throws {
+        let stub = Self.stubbedSession { request in
+            (Self.response(for: request, statusCode: 429), Data(#"{"error":"lookup rate limited"}"#.utf8))
+        }
+        defer { BackendURLProtocolStub.unregister(stub.identifier) }
+
+        let transport = HTTPProductBackendTransport(baseURL: stub.baseURL, session: stub.session)
+
+        do {
+            _ = try await transport.lookupProduct(
+                BackendProductLookupRequestDTO(barcode: "123", localeIdentifier: "fr_FR")
+            )
+            #expect(Bool(false))
+        } catch let error as BackendHTTPError {
+            #expect(error.statusCode == 429)
+            #expect(error.message == "lookup rate limited")
+        } catch {
+            #expect(Bool(false))
+        }
+    }
+
     private static func stubbedSession(
         handler: @escaping @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)
-    ) -> URLSession {
-        BackendURLProtocolStub.requestHandler = handler
+    ) -> StubbedBackendSession {
+        let identifier = UUID().uuidString.lowercased()
+        BackendURLProtocolStub.register(handler, for: identifier)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [BackendURLProtocolStub.self]
-        return URLSession(configuration: configuration)
+        return StubbedBackendSession(
+            identifier: identifier,
+            baseURL: URL(string: "https://\(identifier).backend.example")!,
+            session: URLSession(configuration: configuration)
+        )
     }
 
     private static func response(for request: URLRequest, statusCode: Int) -> HTTPURLResponse {
@@ -130,6 +161,12 @@ struct ProductBackendTests {
             headerFields: ["Content-Type": "application/json"]
         )!
     }
+}
+
+private struct StubbedBackendSession {
+    let identifier: String
+    let baseURL: URL
+    let session: URLSession
 }
 
 private struct ProductBackendTransportStub: ProductBackendTransport {
@@ -151,7 +188,24 @@ private struct ProductBackendTransportStub: ProductBackendTransport {
 }
 
 private final class BackendURLProtocolStub: URLProtocol {
-    nonisolated(unsafe) static var requestHandler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+    private typealias RequestHandler = @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)
+
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var requestHandlers: [String: RequestHandler] = [:]
+
+    static func register(_ handler: @escaping RequestHandler, for identifier: String) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        requestHandlers[identifier] = handler
+    }
+
+    static func unregister(_ identifier: String) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        requestHandlers[identifier] = nil
+    }
 
     override class func canInit(with request: URLRequest) -> Bool {
         true
@@ -162,7 +216,7 @@ private final class BackendURLProtocolStub: URLProtocol {
     }
 
     override func startLoading() {
-        guard let requestHandler = Self.requestHandler else {
+        guard let host = request.url?.host, let requestHandler = Self.requestHandler(for: host) else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
         }
@@ -178,4 +232,13 @@ private final class BackendURLProtocolStub: URLProtocol {
     }
 
     override func stopLoading() {}
+
+    private static func requestHandler(for host: String) -> RequestHandler? {
+        let identifier = host.split(separator: ".").first.map(String.init) ?? host
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        return requestHandlers[identifier]
+    }
 }
