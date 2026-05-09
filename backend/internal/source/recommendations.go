@@ -46,7 +46,11 @@ func recommendationSearchTargets(value product.NormalizedProduct) []recommendati
 }
 
 func preferredRecommendationSearchTargets(value product.NormalizedProduct) []recommendationSearchTarget {
-	context := product.NormalizedName(strings.Join(append([]string{value.Name}, append(value.CategoryTags, value.IngredientText)...), " "))
+	contextParts := make([]string, 0, len(value.CategoryTags)+2)
+	contextParts = append(contextParts, value.Name)
+	contextParts = append(contextParts, value.CategoryTags...)
+	contextParts = append(contextParts, value.IngredientText)
+	context := product.NormalizedName(strings.Join(contextParts, " "))
 
 	if matchesAny([]string{"confiture", "jam", "jams", "marmalade", "jelly", "preserve", "preserves"}, context) {
 		return []recommendationSearchTarget{
