@@ -134,7 +134,7 @@ jobs:
           USDA_SECRET_NAME: ${{ steps.prep.outputs.usda_secret_name }}
         run: |
           set -euo pipefail
-          : "${REMOTE_HOST:?}" "${REMOTE_USER:?}" "${DATABASE_URL:?}" "${USDA_API_KEY:?}"
+          : "${REMOTE_HOST:?}" "${REMOTE_USER:?}" "${DATABASE_URL:?}"
           remote_port=${REMOTE_PORT:-22}
           ssh_opts=(-o StrictHostKeyChecking=accept-new -p "${remote_port}")
           remote_target="${REMOTE_USER}@${REMOTE_HOST}"
