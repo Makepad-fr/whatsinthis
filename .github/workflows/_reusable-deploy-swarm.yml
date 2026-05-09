@@ -251,3 +251,26 @@ jobs:
             fi
           done
           EOF
+
+      - name: Cleanup swarm secrets after failure
+        if: failure()
+        shell: bash
+        env:
+          REMOTE_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          REMOTE_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          REMOTE_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          DATABASE_SECRET_NAME: ${{ steps.prep.outputs.database_secret_name }}
+          USDA_SECRET_NAME: ${{ steps.prep.outputs.usda_secret_name }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${REMOTE_HOST}" || -z "${REMOTE_USER}" || -z "${DATABASE_SECRET_NAME}" || -z "${USDA_SECRET_NAME}" ]]; then
+            echo "Skipping swarm secret cleanup because remote settings or secret names are unavailable."
+            exit 0
+          fi
+
+          remote_port=${REMOTE_PORT:-22}
+          ssh_opts=(-o StrictHostKeyChecking=accept-new -p "${remote_port}")
+          remote_target="${REMOTE_USER}@${REMOTE_HOST}"
+
+          ssh "${ssh_opts[@]}" "${remote_target}" \
+            docker secret rm "${DATABASE_SECRET_NAME}" "${USDA_SECRET_NAME}" >/dev/null 2>&1 || true
