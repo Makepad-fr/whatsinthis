@@ -21,8 +21,13 @@ struct whatsinthisApp: App {
         let analyzer = IngredientAnalyzer()
         let visionProcessor = VisionProcessor()
         let imageRepository = ProductImageRepository(dataStore: dataStore)
-        let transport = HTTPProductBackendTransport(baseURL: BackendConfiguration.baseURL())
-        let productBackend = RemoteProductBackend(transport: transport)
+        let productBackend: any ProductBackend
+        if let backendBaseURL = BackendConfiguration.baseURL() {
+            let transport = HTTPProductBackendTransport(baseURL: backendBaseURL)
+            productBackend = RemoteProductBackend(transport: transport)
+        } else {
+            productBackend = UnavailableProductBackend()
+        }
 
         _scanViewModel = StateObject(
             wrappedValue: ScanViewModel(
