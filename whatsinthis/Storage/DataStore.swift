@@ -121,8 +121,12 @@ final class DataStore {
         context: ModelContext
     ) -> Bool {
         var didChange = false
+        var seenIDs = Set<String>()
 
         for item in items {
+            guard seenIDs.insert(item.id).inserted else {
+                continue
+            }
             didChange = upsertGlossaryItem(item, existing: recordsByID[item.id], context: context) || didChange
         }
 
