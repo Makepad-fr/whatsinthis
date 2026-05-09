@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -49,17 +50,17 @@ func NewClient(cfg Config) *Client {
 }
 
 func (c *Client) LookupProduct(ctx context.Context, scannedBarcode string, lookupBarcode string) (product.LookupResponse, error) {
-	attempts := []sourceAttempt{
-		c.attempt(ctx, func(context.Context) (*product.NormalizedProduct, error) {
+	attempts := c.attemptAll(ctx, []func(context.Context) (*product.NormalizedProduct, error){
+		func(context.Context) (*product.NormalizedProduct, error) {
 			return c.lookupFoodOFF(ctx, lookupBarcode)
-		}),
-		c.attempt(ctx, func(context.Context) (*product.NormalizedProduct, error) {
+		},
+		func(context.Context) (*product.NormalizedProduct, error) {
 			return c.lookupBeautyOBF(ctx, lookupBarcode)
-		}),
-		c.attempt(ctx, func(context.Context) (*product.NormalizedProduct, error) {
+		},
+		func(context.Context) (*product.NormalizedProduct, error) {
 			return c.lookupUSDA(ctx, lookupBarcode)
-		}),
-	}
+		},
+	})
 
 	var candidates []product.NormalizedProduct
 	for _, attempt := range attempts {
@@ -177,6 +178,23 @@ func (c *Client) attempt(ctx context.Context, operation func(context.Context) (*
 		return sourceAttempt{succeeded: false}
 	}
 	return sourceAttempt{product: value, succeeded: true}
+}
+
+func (c *Client) attemptAll(ctx context.Context, operations []func(context.Context) (*product.NormalizedProduct, error)) []sourceAttempt {
+	attempts := make([]sourceAttempt, len(operations))
+	var wg sync.WaitGroup
+	wg.Add(len(operations))
+
+	for i, operation := range operations {
+		i, operation := i, operation
+		go func() {
+			defer wg.Done()
+			attempts[i] = c.attempt(ctx, operation)
+		}()
+	}
+
+	wg.Wait()
+	return attempts
 }
 
 func (c *Client) lookupFoodOFF(ctx context.Context, barcode string) (*product.NormalizedProduct, error) {
