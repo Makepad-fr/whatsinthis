@@ -241,7 +241,10 @@ private final class BackendURLProtocolStub: URLProtocol {
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
-        true
+        guard let host = request.url?.host else {
+            return false
+        }
+        return hasRequestHandler(for: host)
     }
 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest {
@@ -267,11 +270,24 @@ private final class BackendURLProtocolStub: URLProtocol {
     override func stopLoading() {}
 
     private static func requestHandler(for host: String) -> RequestHandler? {
-        let identifier = host.split(separator: ".").first.map(String.init) ?? host
+        let identifier = identifier(for: host)
 
         lock.lock()
         defer { lock.unlock() }
 
         return requestHandlers[identifier]
+    }
+
+    private static func hasRequestHandler(for host: String) -> Bool {
+        let identifier = identifier(for: host)
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        return requestHandlers[identifier] != nil
+    }
+
+    private static func identifier(for host: String) -> String {
+        host.split(separator: ".").first.map(String.init) ?? host
     }
 }
