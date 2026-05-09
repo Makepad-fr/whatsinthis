@@ -7,7 +7,7 @@ variable "REPOSITORY" {
 }
 
 variable "GO_VERSION" {
-  default = "1.26"
+  default = "1.25"
 }
 
 variable "DHI_STATIC_TAG" {
