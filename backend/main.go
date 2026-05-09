@@ -37,20 +37,27 @@ func main() {
 	db.SetConnMaxLifetime(cfg.DBConnLifetime)
 	db.SetConnMaxIdleTime(cfg.DBConnIdleTime)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := db.PingContext(pingCtx); err != nil {
+		pingCancel()
 		log.Fatalf("ping database: %v", err)
 	}
-	if err := database.Migrate(ctx, db); err != nil {
+	pingCancel()
+
+	migrateCtx, migrateCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := database.Migrate(migrateCtx, db); err != nil {
+		migrateCancel()
 		log.Fatalf("migrate database: %v", err)
 	}
+	migrateCancel()
 
 	store := database.NewStore(db, cfg.CacheTTL, cfg.SimilarCacheTTL)
-	if err := glossary.Seed(ctx, store); err != nil {
+	seedCtx, seedCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := glossary.Seed(seedCtx, store); err != nil {
+		seedCancel()
 		log.Fatalf("seed glossary: %v", err)
 	}
+	seedCancel()
 
 	service := product.NewService(
 		store,
@@ -65,6 +72,9 @@ func main() {
 		Addr:              cfg.HTTPAddr,
 		Handler:           server.New(service, db),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	errCh := make(chan error, 1)

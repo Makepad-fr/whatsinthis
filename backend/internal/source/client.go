@@ -16,6 +16,8 @@ import (
 	"github.com/Makepad-fr/whatsinthis/backend/internal/product"
 )
 
+const maxProviderResponseBytes = 10 << 20
+
 type Config struct {
 	HTTPClient *http.Client
 	UserAgent  string
@@ -333,8 +335,14 @@ func (c *Client) fetchJSON(ctx context.Context, endpoint string, target any) err
 		return product.HTTPStatusError{Code: resp.StatusCode}
 	}
 
-	decoder := json.NewDecoder(resp.Body)
-	return decoder.Decode(target)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxProviderResponseBytes+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > maxProviderResponseBytes {
+		return fmt.Errorf("provider response exceeds %d bytes", maxProviderResponseBytes)
+	}
+	return json.Unmarshal(data, target)
 }
 
 func normalizedFoodProduct(p offProduct, fallbackBarcode string) *product.NormalizedProduct {
