@@ -116,6 +116,62 @@ final class DataStore {
         }
     }
 
+    func replaceGlossaryItems(_ items: [IngredientGlossaryItem]) throws {
+        let fetch = FetchDescriptor<IngredientGlossaryEntryRecord>()
+        let existingRecords = try context.fetch(fetch)
+        let recordsByID = Dictionary(uniqueKeysWithValues: existingRecords.map { ($0.id, $0) })
+        let incomingIDs = Set(items.map(\.id))
+        var didChange = false
+
+        for record in existingRecords where !incomingIDs.contains(record.id) {
+            context.delete(record)
+            didChange = true
+        }
+
+        for item in items {
+            let aliasesBlob = item.aliases.joined(separator: "\n")
+            let markersBlob = item.markers.map(\.rawValue).joined(separator: "\n")
+
+            if let existing = recordsByID[item.id] {
+                if existing.name != item.name
+                    || existing.aliasesBlob != aliasesBlob
+                    || existing.categoryRawValue != item.category.rawValue
+                    || existing.summary != item.summary
+                    || existing.functionText != item.function
+                    || existing.caution != item.caution
+                    || existing.markersBlob != markersBlob
+                {
+                    existing.name = item.name
+                    existing.aliasesBlob = aliasesBlob
+                    existing.categoryRawValue = item.category.rawValue
+                    existing.summary = item.summary
+                    existing.functionText = item.function
+                    existing.caution = item.caution
+                    existing.markersBlob = markersBlob
+                    didChange = true
+                }
+            } else {
+                context.insert(
+                    IngredientGlossaryEntryRecord(
+                        id: item.id,
+                        name: item.name,
+                        aliasesBlob: aliasesBlob,
+                        categoryRawValue: item.category.rawValue,
+                        summary: item.summary,
+                        functionText: item.function,
+                        caution: item.caution,
+                        markersBlob: markersBlob
+                    )
+                )
+                didChange = true
+            }
+        }
+
+        if didChange {
+            try context.save()
+        }
+    }
+
     func cachedProduct(for barcode: String) throws -> CachedProductState? {
         try cachedProduct(forKey: barcode)
     }

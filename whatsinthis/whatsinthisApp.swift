@@ -21,8 +21,8 @@ struct whatsinthisApp: App {
         let analyzer = IngredientAnalyzer()
         let visionProcessor = VisionProcessor()
         let imageRepository = ProductImageRepository(dataStore: dataStore)
-        let productService = ProductService(configuration: .live())
-        let productBackend = ProviderProductBackend(productService: productService)
+        let transport = HTTPProductBackendTransport(baseURL: BackendConfiguration.baseURL())
+        let productBackend = RemoteProductBackend(transport: transport)
 
         _scanViewModel = StateObject(
             wrappedValue: ScanViewModel(

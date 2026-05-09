@@ -7,22 +7,22 @@
 
 import Foundation
 
-struct BackendProductLookupRequestDTO: Sendable, Hashable {
+struct BackendProductLookupRequestDTO: Codable, Sendable, Hashable {
     let barcode: String
     let localeIdentifier: String
 }
 
-struct BackendSimilarProductsRequestDTO: Sendable, Hashable {
+struct BackendSimilarProductsRequestDTO: Codable, Sendable, Hashable {
     let product: BackendProductDTO
     let limit: Int
 }
 
-struct BackendProductLookupResponseDTO: Sendable, Hashable {
+struct BackendProductLookupResponseDTO: Codable, Sendable, Hashable {
     let product: BackendProductDTO?
     let message: String?
 }
 
-struct BackendNutritionDTO: Sendable, Hashable {
+struct BackendNutritionDTO: Codable, Sendable, Hashable {
     let energyKcalPer100g: Double?
     let sugarsPer100g: Double?
     let saturatedFatPer100g: Double?
@@ -34,13 +34,13 @@ struct BackendNutritionDTO: Sendable, Hashable {
     let ecoScoreGrade: String?
 }
 
-enum BackendProductCategoryDTO: String, Sendable, Hashable {
+enum BackendProductCategoryDTO: String, Codable, Sendable, Hashable {
     case food
     case beauty
     case unknown
 }
 
-enum BackendScanSourceDTO: String, Sendable, Hashable {
+enum BackendScanSourceDTO: String, Codable, Sendable, Hashable {
     case openFoodFacts
     case openBeautyFacts
     case usda
@@ -48,14 +48,14 @@ enum BackendScanSourceDTO: String, Sendable, Hashable {
     case cache
 }
 
-enum BackendIngredientProvenanceDTO: String, Sendable, Hashable {
+enum BackendIngredientProvenanceDTO: String, Codable, Sendable, Hashable {
     case api
     case ocr
     case glossary
     case inferred
 }
 
-struct BackendProductDTO: Sendable, Hashable, Identifiable {
+struct BackendProductDTO: Codable, Sendable, Hashable, Identifiable {
     let id: String
     let barcode: String?
     let name: String
@@ -77,33 +77,119 @@ struct BackendProductDTO: Sendable, Hashable, Identifiable {
 protocol ProductBackendTransport {
     func lookupProduct(_ request: BackendProductLookupRequestDTO) async throws -> BackendProductLookupResponseDTO
     func similarProducts(_ request: BackendSimilarProductsRequestDTO) async throws -> [BackendProductDTO]
+    func glossaryItems() async throws -> [IngredientGlossaryItem]
 }
 
-struct LocalProductBackendTransport: ProductBackendTransport {
-    private let productService: ProductServicing
+struct BackendHTTPError: Error, LocalizedError, Sendable {
+    let statusCode: Int
+    let message: String
 
-    init(productService: ProductServicing) {
-        self.productService = productService
+    var errorDescription: String? {
+        "Backend request failed with HTTP \(statusCode): \(message)"
+    }
+}
+
+struct HTTPProductBackendTransport: ProductBackendTransport {
+    private let baseURL: URL
+    private let session: URLSession
+
+    init(baseURL: URL, session: URLSession = .shared) {
+        self.baseURL = baseURL
+        self.session = session
     }
 
     func lookupProduct(_ request: BackendProductLookupRequestDTO) async throws -> BackendProductLookupResponseDTO {
-        let result = try await productService.lookupProduct(
-            barcode: request.barcode,
-            locale: Locale(identifier: request.localeIdentifier)
-        )
-        return BackendProductLookupResponseDTO(
-            product: result.product?.backendDTO,
-            message: result.message
-        )
+        try await post(pathComponents: ["v1", "products", "lookup"], body: request)
     }
 
     func similarProducts(_ request: BackendSimilarProductsRequestDTO) async throws -> [BackendProductDTO] {
-        let products = try await productService.similarProducts(
-            for: request.product.normalizedProduct,
-            limit: request.limit
-        )
-        return products.map(\.backendDTO)
+        try await post(pathComponents: ["v1", "products", "similar"], body: request)
     }
+
+    func glossaryItems() async throws -> [IngredientGlossaryItem] {
+        var request = URLRequest(url: endpoint(pathComponents: ["v1", "glossary"]))
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try Self.decoder.decode([IngredientGlossaryItem].self, from: data)
+    }
+
+    private func post<Request: Encodable, Response: Decodable>(
+        pathComponents: [String],
+        body: Request
+    ) async throws -> Response {
+        var request = URLRequest(url: endpoint(pathComponents: pathComponents))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try Self.encoder.encode(body)
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try Self.decoder.decode(Response.self, from: data)
+    }
+
+    private func endpoint(pathComponents: [String]) -> URL {
+        pathComponents.reduce(baseURL) { url, component in
+            url.appendingPathComponent(component)
+        }
+    }
+
+    private func validate(response: URLResponse, data: Data) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            switch httpResponse.statusCode {
+            case 429:
+                throw SimilarProductsLookupError.rateLimited
+            case 503:
+                throw SimilarProductsLookupError.serviceUnavailable
+            default:
+                let message = (try? Self.decoder.decode(BackendErrorResponse.self, from: data))?.error
+                    ?? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
+                throw BackendHTTPError(statusCode: httpResponse.statusCode, message: message)
+            }
+        }
+    }
+
+    private static var encoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            try container.encode(formatter.string(from: date))
+        }
+        return encoder
+    }
+
+    private static var decoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            if let timestamp = try? container.decode(Double.self) {
+                return Date(timeIntervalSince1970: timestamp)
+            }
+            let value = try container.decode(String.self)
+            for options: ISO8601DateFormatter.Options in [
+                [.withInternetDateTime, .withFractionalSeconds],
+                [.withInternetDateTime],
+            ] {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = options
+                if let date = formatter.date(from: value) {
+                    return date
+                }
+            }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid backend date: \(value)")
+        }
+        return decoder
+    }
+}
+
+private struct BackendErrorResponse: Decodable {
+    let error: String
 }
 
 extension ProductLookupRequest {

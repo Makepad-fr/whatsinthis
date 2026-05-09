@@ -68,6 +68,9 @@ final class ScanViewModel: ObservableObject {
 
         do {
             try dataStore.bootstrapGlossaryIfNeeded()
+            if let remoteGlossary = try? await productBackend.glossaryItems(), !remoteGlossary.isEmpty {
+                try dataStore.replaceGlossaryItems(remoteGlossary)
+            }
             ingredientAnalyzer.updateGlossary(try dataStore.glossaryItems())
             latestSnapshot = try dataStore.latestSnapshot()
             premiumUnlocked = try dataStore.isPremiumUnlocked()

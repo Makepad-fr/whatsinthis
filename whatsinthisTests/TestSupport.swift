@@ -43,4 +43,8 @@ struct RecommendationProductBackendStub: ProductBackend {
         }
         return Array(similarProductsResult.prefix(request.limit))
     }
+
+    func glossaryItems() async throws -> [IngredientGlossaryItem] {
+        []
+    }
 }
