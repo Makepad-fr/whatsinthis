@@ -27,13 +27,26 @@ enum BackendConfiguration {
 
     private static func isValidBackendURL(_ url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
               let host = url.host,
               !host.isEmpty
         else {
             return false
         }
-        return true
+
+        if scheme == "https" {
+            return true
+        }
+
+        #if DEBUG
+        return scheme == "http" && isLocalBackendHost(host)
+        #else
+        return false
+        #endif
+    }
+
+    private static func isLocalBackendHost(_ host: String) -> Bool {
+        let normalizedHost = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]")).lowercased()
+        return normalizedHost == "localhost" || normalizedHost == "127.0.0.1" || normalizedHost == "::1"
     }
 }
 
