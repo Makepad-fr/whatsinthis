@@ -16,6 +16,10 @@ enum BackendConfiguration {
             return url
         }
 
+        #if DEBUG
         return URL(string: "http://127.0.0.1:8080")!
+        #else
+        fatalError("WhatsInThisBackendBaseURL must be configured for release builds.")
+        #endif
     }
 }

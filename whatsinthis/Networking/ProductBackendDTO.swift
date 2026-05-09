@@ -103,20 +103,21 @@ struct HTTPProductBackendTransport: ProductBackendTransport {
     }
 
     func similarProducts(_ request: BackendSimilarProductsRequestDTO) async throws -> [BackendProductDTO] {
-        try await post(pathComponents: ["v1", "products", "similar"], body: request)
+        try await post(pathComponents: ["v1", "products", "similar"], body: request, endpoint: .similarProducts)
     }
 
     func glossaryItems() async throws -> [IngredientGlossaryItem] {
         var request = URLRequest(url: endpoint(pathComponents: ["v1", "glossary"]))
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        try validate(response: response, data: data, endpoint: .glossary)
         return try Self.decoder.decode([IngredientGlossaryItem].self, from: data)
     }
 
     private func post<Request: Encodable, Response: Decodable>(
         pathComponents: [String],
-        body: Request
+        body: Request,
+        endpoint endpointKind: BackendEndpoint = .lookup
     ) async throws -> Response {
         var request = URLRequest(url: endpoint(pathComponents: pathComponents))
         request.httpMethod = "POST"
@@ -125,7 +126,7 @@ struct HTTPProductBackendTransport: ProductBackendTransport {
         request.httpBody = try Self.encoder.encode(body)
 
         let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
+        try validate(response: response, data: data, endpoint: endpointKind)
         return try Self.decoder.decode(Response.self, from: data)
     }
 
@@ -135,15 +136,15 @@ struct HTTPProductBackendTransport: ProductBackendTransport {
         }
     }
 
-    private func validate(response: URLResponse, data: Data) throws {
+    private func validate(response: URLResponse, data: Data, endpoint: BackendEndpoint) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
         guard (200...299).contains(httpResponse.statusCode) else {
-            switch httpResponse.statusCode {
-            case 429:
+            switch (endpoint, httpResponse.statusCode) {
+            case (.similarProducts, 429):
                 throw SimilarProductsLookupError.rateLimited
-            case 503:
+            case (.similarProducts, 503):
                 throw SimilarProductsLookupError.serviceUnavailable
             default:
                 let message = (try? Self.decoder.decode(BackendErrorResponse.self, from: data))?.error
@@ -151,6 +152,12 @@ struct HTTPProductBackendTransport: ProductBackendTransport {
                 throw BackendHTTPError(statusCode: httpResponse.statusCode, message: message)
             }
         }
+    }
+
+    private enum BackendEndpoint {
+        case lookup
+        case similarProducts
+        case glossary
     }
 
     private static var encoder: JSONEncoder {
