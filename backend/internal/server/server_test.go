@@ -69,6 +69,28 @@ func TestGlossaryEndpoint(t *testing.T) {
 	}
 }
 
+func TestDecodeJSONRejectsTrailingContent(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/v1/products/lookup", strings.NewReader(`{"barcode":"123"} {}`))
+	response := httptest.NewRecorder()
+
+	New(fakeService{}, &sql.DB{}).ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+}
+
+func TestDecodeJSONRejectsOversizedBody(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/v1/products/lookup", strings.NewReader(`{"barcode":"`+strings.Repeat("1", maxJSONRequestBodyBytes)+`"}`))
+	response := httptest.NewRecorder()
+
+	New(fakeService{}, &sql.DB{}).ServeHTTP(response, request)
+
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusRequestEntityTooLarge)
+	}
+}
+
 type fakeService struct {
 	lookupResponse  product.LookupResponse
 	similarResponse []product.NormalizedProduct
