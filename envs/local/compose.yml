@@ -1,12 +1,12 @@
 services:
   backend:
     env_file:
-      - ./envs/local/.env.app
+      - ${PWD}/envs/local/.env.app
     restart: unless-stopped
 
   db:
     env_file:
-      - ./envs/local/.env.db
+      - ${PWD}/envs/local/.env.db
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     restart: unless-stopped
