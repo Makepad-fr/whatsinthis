@@ -2,7 +2,6 @@ package product
 
 import (
 	"regexp"
-	"sort"
 	"strings"
 	"unicode"
 )
@@ -56,14 +55,6 @@ func DeduplicateProducts(products []NormalizedProduct) []NormalizedProduct {
 		result = append(result, candidate)
 	}
 	return result
-}
-
-func SortedGlossary(items []GlossaryItem) []GlossaryItem {
-	out := append([]GlossaryItem(nil), items...)
-	sort.Slice(out, func(i, j int) bool {
-		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
-	})
-	return out
 }
 
 func StringPtr(value string) *string {

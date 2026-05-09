@@ -166,8 +166,8 @@ func (s *Store) GlossaryItems(ctx context.Context) ([]product.GlossaryItem, erro
 	rows, err := s.db.QueryContext(
 		ctx,
 		`SELECT id, name, aliases, category, summary, function_text, caution, markers
-		 FROM ingredient_glossary
-		 ORDER BY name`,
+			 FROM ingredient_glossary
+			 ORDER BY lower(name), name`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query glossary: %w", err)

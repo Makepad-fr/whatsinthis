@@ -106,11 +106,7 @@ func (s *Service) SimilarProducts(ctx context.Context, request SimilarProductsRe
 }
 
 func (s *Service) GlossaryItems(ctx context.Context) ([]GlossaryItem, error) {
-	items, err := s.store.GlossaryItems(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return SortedGlossary(items), nil
+	return s.store.GlossaryItems(ctx)
 }
 
 func similarCacheKey(product NormalizedProduct, limit int) string {
