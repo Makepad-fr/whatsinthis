@@ -94,6 +94,39 @@ struct ProductBackendTests {
     }
 
     @Test
+    func httpTransportDecodesGlossaryResponse() async throws {
+        let stub = Self.stubbedSession { request in
+            #expect(request.url?.path == "/v1/glossary")
+            #expect(request.httpMethod == "GET")
+
+            let data = Data("""
+            [
+              {
+                "id": "salt",
+                "name": "Salt",
+                "aliases": ["sodium chloride"],
+                "category": "food",
+                "summary": "A seasoning.",
+                "function": "Adds flavor.",
+                "caution": true,
+                "markers": ["allergen", "additive"]
+              }
+            ]
+            """.utf8)
+            return (Self.response(for: request, statusCode: 200), data)
+        }
+        defer { BackendURLProtocolStub.unregister(stub.identifier) }
+
+        let transport = HTTPProductBackendTransport(baseURL: stub.baseURL, session: stub.session)
+
+        let response = try await transport.glossaryItems()
+
+        #expect(response.map(\.id) == ["salt"])
+        #expect(response.first?.category == .food)
+        #expect(response.first?.markers == [.allergen, .additive])
+    }
+
+    @Test
     func httpTransportMapsRateLimit() async throws {
         let stub = Self.stubbedSession { request in
             (Self.response(for: request, statusCode: 429), Data(#"{"error":"rate limited"}"#.utf8))

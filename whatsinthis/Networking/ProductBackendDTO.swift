@@ -108,6 +108,7 @@ struct HTTPProductBackendTransport: ProductBackendTransport {
 
     func glossaryItems() async throws -> [IngredientGlossaryItem] {
         var request = URLRequest(url: endpoint(pathComponents: ["v1", "glossary"]))
+        request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data, endpoint: .glossary)
