@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum ProductCategory: String, Codable, CaseIterable, Hashable, Identifiable {
+enum ProductCategory: String, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case food
     case beauty
     case unknown
@@ -75,7 +75,7 @@ enum FlagSeverity: String, Codable, Hashable {
     case unknown
 }
 
-enum AnalysisMarker: String, Codable, Hashable, CaseIterable {
+enum AnalysisMarker: String, Codable, Hashable, CaseIterable, Sendable {
     case allergen
     case additive
     case processing
@@ -380,7 +380,7 @@ struct AnalyzedProduct: Codable, Hashable, Identifiable {
     }
 }
 
-struct IngredientGlossaryItem: Codable, Hashable, Identifiable {
+struct IngredientGlossaryItem: Codable, Hashable, Identifiable, Sendable {
     let id: String
     let name: String
     let aliases: [String]

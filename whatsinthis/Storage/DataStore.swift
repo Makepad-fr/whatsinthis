@@ -83,6 +83,10 @@ final class DataStore {
 
     func replaceGlossaryItemsInBackground(_ items: [IngredientGlossaryItem]) async throws {
         let payload = try JSONEncoder().encode(items)
+        try await replaceGlossaryItemsPayloadInBackground(payload)
+    }
+
+    func replaceGlossaryItemsPayloadInBackground(_ payload: Data) async throws {
         let container = modelContainer
 
         try await Task.detached(priority: .utility) {

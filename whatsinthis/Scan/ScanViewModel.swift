@@ -82,8 +82,17 @@ final class ScanViewModel: ObservableObject {
         }
 
         glossaryRefreshTask?.cancel()
-        glossaryRefreshTask = Task { [weak self] in
-            await self?.refreshRemoteGlossary()
+        let productBackend = productBackend
+        glossaryRefreshTask = Task.detached(priority: .utility) { [weak self, productBackend] in
+            guard let remoteGlossary = try? await productBackend.glossaryItems(),
+                  !Task.isCancelled,
+                  !remoteGlossary.isEmpty
+            else {
+                return
+            }
+
+            let persistencePayload = try? JSONEncoder().encode(remoteGlossary)
+            await self?.applyRemoteGlossary(remoteGlossary, persistencePayload: persistencePayload)
         }
     }
 
@@ -201,17 +210,12 @@ final class ScanViewModel: ObservableObject {
         }
     }
 
-    private func refreshRemoteGlossary() async {
-        guard let remoteGlossary = try? await productBackend.glossaryItems(),
-              !Task.isCancelled,
-              !remoteGlossary.isEmpty
-        else {
-            return
-        }
-
+    private func applyRemoteGlossary(_ remoteGlossary: [IngredientGlossaryItem], persistencePayload: Data?) async {
         do {
             ingredientAnalyzer.updateGlossary(remoteGlossary)
-            try await dataStore.replaceGlossaryItemsInBackground(remoteGlossary)
+            if let persistencePayload {
+                try await dataStore.replaceGlossaryItemsPayloadInBackground(persistencePayload)
+            }
         } catch {
             // Keep the existing persisted fallback if the remote glossary cannot be saved.
         }

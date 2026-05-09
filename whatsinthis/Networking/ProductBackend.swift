@@ -48,7 +48,7 @@ enum SimilarProductsLookupError: Error, Equatable, LocalizedError, Sendable {
 }
 
 /// Stable app-facing boundary for backend-owned product data.
-protocol ProductBackend {
+protocol ProductBackend: Sendable {
     func lookupProduct(_ request: ProductLookupRequest) async throws -> ProductLookupResult
     func similarProducts(_ request: SimilarProductsRequest) async throws -> [NormalizedProduct]
     func glossaryItems() async throws -> [IngredientGlossaryItem]
