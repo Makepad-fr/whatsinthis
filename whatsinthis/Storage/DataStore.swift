@@ -54,46 +54,7 @@ final class DataStore {
         let fetch = FetchDescriptor<IngredientGlossaryEntryRecord>()
         let existingRecords = try context.fetch(fetch)
         let recordsByID = Dictionary(uniqueKeysWithValues: existingRecords.map { ($0.id, $0) })
-        var didChange = false
-
-        for item in items {
-            let aliasesBlob = item.aliases.joined(separator: "\n")
-            let markersBlob = item.markers.map(\.rawValue).joined(separator: "\n")
-
-            if let existing = recordsByID[item.id] {
-                if existing.name != item.name
-                    || existing.aliasesBlob != aliasesBlob
-                    || existing.categoryRawValue != item.category.rawValue
-                    || existing.summary != item.summary
-                    || existing.functionText != item.function
-                    || existing.caution != item.caution
-                    || existing.markersBlob != markersBlob
-                {
-                    existing.name = item.name
-                    existing.aliasesBlob = aliasesBlob
-                    existing.categoryRawValue = item.category.rawValue
-                    existing.summary = item.summary
-                    existing.functionText = item.function
-                    existing.caution = item.caution
-                    existing.markersBlob = markersBlob
-                    didChange = true
-                }
-            } else {
-                context.insert(
-                    IngredientGlossaryEntryRecord(
-                        id: item.id,
-                        name: item.name,
-                        aliasesBlob: aliasesBlob,
-                        categoryRawValue: item.category.rawValue,
-                        summary: item.summary,
-                        functionText: item.function,
-                        caution: item.caution,
-                        markersBlob: markersBlob
-                    )
-                )
-                didChange = true
-            }
-        }
+        let didChange = upsertGlossaryItems(items, recordsByID: recordsByID)
 
         if didChange {
             try context.save()
@@ -128,48 +89,65 @@ final class DataStore {
             didChange = true
         }
 
-        for item in items {
-            let aliasesBlob = item.aliases.joined(separator: "\n")
-            let markersBlob = item.markers.map(\.rawValue).joined(separator: "\n")
-
-            if let existing = recordsByID[item.id] {
-                if existing.name != item.name
-                    || existing.aliasesBlob != aliasesBlob
-                    || existing.categoryRawValue != item.category.rawValue
-                    || existing.summary != item.summary
-                    || existing.functionText != item.function
-                    || existing.caution != item.caution
-                    || existing.markersBlob != markersBlob
-                {
-                    existing.name = item.name
-                    existing.aliasesBlob = aliasesBlob
-                    existing.categoryRawValue = item.category.rawValue
-                    existing.summary = item.summary
-                    existing.functionText = item.function
-                    existing.caution = item.caution
-                    existing.markersBlob = markersBlob
-                    didChange = true
-                }
-            } else {
-                context.insert(
-                    IngredientGlossaryEntryRecord(
-                        id: item.id,
-                        name: item.name,
-                        aliasesBlob: aliasesBlob,
-                        categoryRawValue: item.category.rawValue,
-                        summary: item.summary,
-                        functionText: item.function,
-                        caution: item.caution,
-                        markersBlob: markersBlob
-                    )
-                )
-                didChange = true
-            }
-        }
+        didChange = upsertGlossaryItems(items, recordsByID: recordsByID) || didChange
 
         if didChange {
             try context.save()
         }
+    }
+
+    private func upsertGlossaryItems(
+        _ items: [IngredientGlossaryItem],
+        recordsByID: [String: IngredientGlossaryEntryRecord]
+    ) -> Bool {
+        var didChange = false
+
+        for item in items {
+            didChange = upsertGlossaryItem(item, existing: recordsByID[item.id]) || didChange
+        }
+
+        return didChange
+    }
+
+    private func upsertGlossaryItem(_ item: IngredientGlossaryItem, existing: IngredientGlossaryEntryRecord?) -> Bool {
+        let aliasesBlob = item.aliases.joined(separator: "\n")
+        let markersBlob = item.markers.map(\.rawValue).joined(separator: "\n")
+
+        if let existing {
+            guard existing.name != item.name
+                || existing.aliasesBlob != aliasesBlob
+                || existing.categoryRawValue != item.category.rawValue
+                || existing.summary != item.summary
+                || existing.functionText != item.function
+                || existing.caution != item.caution
+                || existing.markersBlob != markersBlob
+            else {
+                return false
+            }
+
+            existing.name = item.name
+            existing.aliasesBlob = aliasesBlob
+            existing.categoryRawValue = item.category.rawValue
+            existing.summary = item.summary
+            existing.functionText = item.function
+            existing.caution = item.caution
+            existing.markersBlob = markersBlob
+            return true
+        }
+
+        context.insert(
+            IngredientGlossaryEntryRecord(
+                id: item.id,
+                name: item.name,
+                aliasesBlob: aliasesBlob,
+                categoryRawValue: item.category.rawValue,
+                summary: item.summary,
+                functionText: item.function,
+                caution: item.caution,
+                markersBlob: markersBlob
+            )
+        )
+        return true
     }
 
     func cachedProduct(for barcode: String) throws -> CachedProductState? {
