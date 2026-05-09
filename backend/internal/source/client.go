@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/Makepad-fr/whatsinthis/backend/internal/product"
 )
@@ -492,7 +493,9 @@ func sentenceCase(value string) string {
 	if value == "" {
 		return value
 	}
-	return strings.ToUpper(value[:1]) + value[1:]
+	runes := []rune(value)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
 }
 
 func whitespace(value string) string {
