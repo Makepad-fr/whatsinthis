@@ -12,8 +12,21 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
+const migrationAdvisoryLockID int64 = 8_914_202_526_001
+
 func Migrate(ctx context.Context, db *sql.DB) error {
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("open migration connection: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, migrationAdvisoryLockID); err != nil {
+		return fmt.Errorf("lock migrations: %w", err)
+	}
+	defer conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, migrationAdvisoryLockID)
+
+	if _, err := conn.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
 
@@ -31,7 +44,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	sort.Strings(names)
 
 	for _, name := range names {
-		applied, err := migrationApplied(ctx, db, name)
+		applied, err := migrationApplied(ctx, conn, name)
 		if err != nil {
 			return err
 		}
@@ -44,7 +57,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("read migration %s: %w", name, err)
 		}
 
-		tx, err := db.BeginTx(ctx, nil)
+		tx, err := conn.BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("begin migration %s: %w", name, err)
 		}
@@ -52,7 +65,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version) VALUES ($1)`, name); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING`, name); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("record migration %s: %w", name, err)
 		}
@@ -64,9 +77,9 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func migrationApplied(ctx context.Context, db *sql.DB, name string) (bool, error) {
+func migrationApplied(ctx context.Context, conn *sql.Conn, name string) (bool, error) {
 	var exists bool
-	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, name).Scan(&exists); err != nil {
+	if err := conn.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, name).Scan(&exists); err != nil {
 		return false, fmt.Errorf("check migration %s: %w", name, err)
 	}
 	return exists, nil
