@@ -74,7 +74,7 @@ struct BackendProductDTO: Codable, Sendable, Hashable, Identifiable {
     let capturedAt: Date
 }
 
-protocol ProductBackendTransport {
+protocol ProductBackendTransport: Sendable {
     func lookupProduct(_ request: BackendProductLookupRequestDTO) async throws -> BackendProductLookupResponseDTO
     func similarProducts(_ request: BackendSimilarProductsRequestDTO) async throws -> [BackendProductDTO]
     func glossaryItems() async throws -> [IngredientGlossaryItem]
@@ -93,9 +93,9 @@ struct HTTPProductBackendTransport: ProductBackendTransport {
     private let baseURL: URL
     private let session: URLSession
 
-    init(baseURL: URL, session: URLSession = .shared) {
+    init(baseURL: URL, session: URLSession? = nil) {
         self.baseURL = baseURL
-        self.session = session
+        self.session = session ?? Self.makeDefaultSession()
     }
 
     func lookupProduct(_ request: BackendProductLookupRequestDTO) async throws -> BackendProductLookupResponseDTO {
@@ -158,6 +158,16 @@ struct HTTPProductBackendTransport: ProductBackendTransport {
         case lookup
         case similarProducts
         case glossary
+    }
+
+    private static func makeDefaultSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 20
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        return URLSession(configuration: configuration)
     }
 
     private static var encoder: JSONEncoder {
