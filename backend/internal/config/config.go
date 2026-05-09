@@ -37,18 +37,47 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	cacheTTL, err := envDuration("WHATSINTHIS_PRODUCT_CACHE_TTL", 30*24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+	similarCacheTTL, err := envDuration("WHATSINTHIS_SIMILAR_CACHE_TTL", 24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+	providerTimeout, err := envDuration("WHATSINTHIS_PROVIDER_TIMEOUT", 6*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	dbMaxOpenConns, err := envInt("WHATSINTHIS_DB_MAX_OPEN_CONNS", 20)
+	if err != nil {
+		return Config{}, err
+	}
+	dbMaxIdleConns, err := envInt("WHATSINTHIS_DB_MAX_IDLE_CONNS", 10)
+	if err != nil {
+		return Config{}, err
+	}
+	dbConnLifetime, err := envDuration("WHATSINTHIS_DB_CONN_MAX_LIFETIME", 30*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	dbConnIdleTime, err := envDuration("WHATSINTHIS_DB_CONN_MAX_IDLE_TIME", 5*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		HTTPAddr:        envString("WHATSINTHIS_HTTP_ADDR", ":8080"),
 		DatabaseURL:     databaseURL,
 		USDAAPIKey:      usdaAPIKey,
 		UserAgent:       envString("WHATSINTHIS_USER_AGENT", "WhatsInThis/1.0 (backend)"),
-		CacheTTL:        envDuration("WHATSINTHIS_PRODUCT_CACHE_TTL", 30*24*time.Hour),
-		SimilarCacheTTL: envDuration("WHATSINTHIS_SIMILAR_CACHE_TTL", 24*time.Hour),
-		ProviderTimeout: envDuration("WHATSINTHIS_PROVIDER_TIMEOUT", 6*time.Second),
-		DBMaxOpenConns:  envInt("WHATSINTHIS_DB_MAX_OPEN_CONNS", 20),
-		DBMaxIdleConns:  envInt("WHATSINTHIS_DB_MAX_IDLE_CONNS", 10),
-		DBConnLifetime:  envDuration("WHATSINTHIS_DB_CONN_MAX_LIFETIME", 30*time.Minute),
-		DBConnIdleTime:  envDuration("WHATSINTHIS_DB_CONN_MAX_IDLE_TIME", 5*time.Minute),
+		CacheTTL:        cacheTTL,
+		SimilarCacheTTL: similarCacheTTL,
+		ProviderTimeout: providerTimeout,
+		DBMaxOpenConns:  dbMaxOpenConns,
+		DBMaxIdleConns:  dbMaxIdleConns,
+		DBConnLifetime:  dbConnLifetime,
+		DBConnIdleTime:  dbConnIdleTime,
 	}, nil
 }
 
@@ -77,26 +106,29 @@ func envString(key, fallback string) string {
 	return value
 }
 
-func envDuration(key string, fallback time.Duration) time.Duration {
+func envDuration(key string, fallback time.Duration) (time.Duration, error) {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
-		return fallback
+		return fallback, nil
 	}
 	duration, err := time.ParseDuration(value)
 	if err != nil {
-		return fallback
+		return 0, fmt.Errorf("%s must be a valid duration: %w", key, err)
 	}
-	return duration
+	return duration, nil
 }
 
-func envInt(key string, fallback int) int {
+func envInt(key string, fallback int) (int, error) {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
-		return fallback
+		return fallback, nil
 	}
 	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed < 0 {
-		return fallback
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a valid integer: %w", key, err)
 	}
-	return parsed
+	if parsed < 0 {
+		return 0, fmt.Errorf("%s must be non-negative", key)
+	}
+	return parsed, nil
 }
