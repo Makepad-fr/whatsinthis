@@ -27,4 +27,4 @@ CREATE TABLE IF NOT EXISTS ingredient_glossary (
 
 CREATE INDEX IF NOT EXISTS product_cache_expires_at_idx ON product_cache (expires_at);
 CREATE INDEX IF NOT EXISTS similar_product_cache_expires_at_idx ON similar_product_cache (expires_at);
-CREATE INDEX IF NOT EXISTS ingredient_glossary_name_idx ON ingredient_glossary (name);
+CREATE INDEX IF NOT EXISTS ingredient_glossary_name_idx ON ingredient_glossary (lower(name), name);
