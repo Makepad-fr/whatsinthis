@@ -28,10 +28,20 @@ enum TestSupport {
     }
 }
 
-struct RecommendationProductBackendStub: ProductBackend, @unchecked Sendable {
+struct RecommendationProductBackendStub: ProductBackend {
     let similarProductsResult: [NormalizedProduct]
-    var similarProductsError: Error? = nil
-    var lookupResult = ProductLookupResult(product: nil, message: nil)
+    let similarProductsError: (any Error & Sendable)?
+    let lookupResult: ProductLookupResult
+
+    init(
+        similarProductsResult: [NormalizedProduct],
+        similarProductsError: (any Error & Sendable)? = nil,
+        lookupResult: ProductLookupResult = ProductLookupResult(product: nil, message: nil)
+    ) {
+        self.similarProductsResult = similarProductsResult
+        self.similarProductsError = similarProductsError
+        self.lookupResult = lookupResult
+    }
 
     func lookupProduct(_ request: ProductLookupRequest) async throws -> ProductLookupResult {
         lookupResult

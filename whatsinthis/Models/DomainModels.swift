@@ -26,7 +26,7 @@ enum ProductCategory: String, Codable, CaseIterable, Hashable, Identifiable, Sen
     }
 }
 
-enum ScanSource: String, Codable, Hashable {
+enum ScanSource: String, Codable, Hashable, Sendable {
     case openFoodFacts
     case openBeautyFacts
     case usda
@@ -49,7 +49,7 @@ enum ScanSource: String, Codable, Hashable {
     }
 }
 
-enum IngredientProvenance: String, Codable, Hashable {
+enum IngredientProvenance: String, Codable, Hashable, Sendable {
     case api
     case ocr
     case glossary
@@ -275,7 +275,7 @@ struct HighlightCard: Codable, Hashable, Identifiable {
     }
 }
 
-struct NutritionSnapshot: Codable, Hashable {
+struct NutritionSnapshot: Codable, Hashable, Sendable {
     let energyKcalPer100g: Double?
     let sugarsPer100g: Double?
     let saturatedFatPer100g: Double?
@@ -299,7 +299,7 @@ struct NutritionSnapshot: Codable, Hashable {
     }
 }
 
-struct NormalizedProduct: Codable, Hashable, Identifiable {
+struct NormalizedProduct: Codable, Hashable, Identifiable, Sendable {
     let id: String
     let barcode: String?
     let name: String
@@ -397,7 +397,7 @@ struct OCRResult: Codable, Hashable {
     let lines: [String]
 }
 
-struct ProductLookupResult: Hashable {
+struct ProductLookupResult: Hashable, Sendable {
     let product: NormalizedProduct?
     let message: String?
 }
