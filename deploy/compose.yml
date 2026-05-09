@@ -1,0 +1,28 @@
+services:
+  backend:
+    image: ${WHATSINTHIS_IMAGE:?WHATSINTHIS_IMAGE is required}
+    environment:
+      WHATSINTHIS_HTTP_ADDR: ${WHATSINTHIS_HTTP_ADDR:-:8080}
+      WHATSINTHIS_DATABASE_URL_FILE: /run/secrets/whatsinthis_database_url
+      WHATSINTHIS_USDA_API_KEY_FILE: /run/secrets/whatsinthis_usda_api_key
+      WHATSINTHIS_USER_AGENT: ${WHATSINTHIS_USER_AGENT:-WhatsInThis/1.0 (backend)}
+    secrets:
+      - source: whatsinthis_database_url
+        target: whatsinthis_database_url
+      - source: whatsinthis_usda_api_key
+        target: whatsinthis_usda_api_key
+    networks:
+      app:
+        aliases:
+          - ${WHATSINTHIS_APP_ALIAS:?WHATSINTHIS_APP_ALIAS is required}
+
+secrets:
+  whatsinthis_database_url:
+    external: true
+    name: ${WHATSINTHIS_DATABASE_URL_SECRET:?WHATSINTHIS_DATABASE_URL_SECRET is required}
+  whatsinthis_usda_api_key:
+    external: true
+    name: ${WHATSINTHIS_USDA_API_KEY_SECRET:?WHATSINTHIS_USDA_API_KEY_SECRET is required}
+
+networks:
+  app:

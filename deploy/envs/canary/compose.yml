@@ -1,0 +1,22 @@
+services:
+  backend:
+    deploy:
+      replicas: ${WHATSINTHIS_BACKEND_REPLICAS:-1}
+      placement:
+        constraints:
+          - node.labels.project.whatsinthis.role == app
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+
+networks:
+  app:
+    external: true
+    name: ${DEPLOY_APP_NETWORK:?DEPLOY_APP_NETWORK is required}

@@ -1,0 +1,19 @@
+services:
+  db:
+    image: dhi.io/postgres:16-debian13
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-whatsinthis}
+      POSTGRES_USER: ${POSTGRES_USER:-whatsinthis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-whatsinthis}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      db:
+        aliases:
+          - whatsinthis-db
+
+volumes:
+  db_data:
+
+networks:
+  db:

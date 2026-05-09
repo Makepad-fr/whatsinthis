@@ -1,0 +1,59 @@
+name: iOS Tag TestFlight
+
+on:
+  push:
+    tags:
+      - "ios/v[0-9]*"
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: macos-26
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Resolve marketing version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          marketing_version="${GITHUB_REF_NAME#ios/v}"
+          if [[ ! "${marketing_version}" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "iOS tag must look like ios/v1, ios/v1.2, or ios/v1.2.3: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          echo "marketing_version=${marketing_version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload app build to TestFlight
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ vars.APP_STORE_CONNECT_API_KEY_ID || secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ vars.APP_STORE_CONNECT_API_ISSUER_ID || secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          BUILD_NUMBER: ${{ github.run_id }}
+          MARKETING_VERSION: ${{ steps.version.outputs.marketing_version }}
+          PRUNE_API_CREATED_IOS_DEVELOPMENT_CERTIFICATES: "true"
+          TESTFLIGHT_ENVIRONMENT: production
+          WAIT_FOR_PROCESSING: "true"
+          WHATSINTHIS_BACKEND_BASE_URL: ${{ vars.WHATSINTHIS_PRODUCTION_BACKEND_BASE_URL || secrets.WHATSINTHIS_PRODUCTION_BACKEND_BASE_URL }}
+        run: ./scripts/testflight-upload.sh
+
+      - name: Upload release artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-testflight-artifacts
+          path: |
+            build/whatsinthis.xcarchive
+            build/testflight-export
+            build/testflight-export-options.plist
+          if-no-files-found: ignore

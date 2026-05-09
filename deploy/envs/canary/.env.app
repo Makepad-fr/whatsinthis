@@ -1,0 +1,3 @@
+WHATSINTHIS_APP_ALIAS=whatsinthis-canary-backend
+WHATSINTHIS_HTTP_ADDR=:8080
+WHATSINTHIS_USER_AGENT=WhatsInThis/1.0 (canary backend)
