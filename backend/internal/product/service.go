@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -43,8 +44,9 @@ func (s *Service) LookupProduct(ctx context.Context, request LookupRequest) (Loo
 		message := "No product barcode was provided."
 		return LookupResponse{Message: &message}, nil
 	}
+	lookupCandidates := LookupCandidates(scannedBarcode)
 
-	for _, candidate := range LookupCandidates(scannedBarcode) {
+	for _, candidate := range lookupCandidates {
 		if cached, ok, err := s.store.CachedProduct(ctx, candidate); err != nil {
 			return LookupResponse{}, err
 		} else if ok {
@@ -55,7 +57,7 @@ func (s *Service) LookupProduct(ctx context.Context, request LookupRequest) (Loo
 	}
 
 	sawSourceFailure := false
-	for _, candidate := range LookupCandidates(scannedBarcode) {
+	for _, candidate := range lookupCandidates {
 		response, err := s.source.LookupProduct(ctx, scannedBarcode, candidate)
 		if err != nil {
 			sawSourceFailure = true
@@ -64,8 +66,10 @@ func (s *Service) LookupProduct(ctx context.Context, request LookupRequest) (Loo
 		if response.Product == nil {
 			continue
 		}
-		if err := s.store.SaveProduct(ctx, scannedBarcode, *response.Product); err != nil {
-			return LookupResponse{}, err
+		for _, cacheKey := range lookupCandidates {
+			if err := s.store.SaveProduct(ctx, cacheKey, *response.Product); err != nil {
+				return LookupResponse{}, err
+			}
 		}
 		return response, nil
 	}
@@ -117,5 +121,7 @@ func similarCacheKey(product NormalizedProduct, limit int) string {
 	if barcode == "" {
 		barcode = NormalizedName(product.ID + ":" + product.Name)
 	}
-	return fmt.Sprintf("%s:%d:%s", barcode, limit, strings.Join(product.CategoryTags, ","))
+	categoryTags := append([]string(nil), product.CategoryTags...)
+	sort.Strings(categoryTags)
+	return fmt.Sprintf("%s:%d:%s", barcode, limit, strings.Join(categoryTags, ","))
 }
