@@ -28,6 +28,7 @@ final class ScanViewModel: ObservableObject {
 
     private var hasPrepared = false
     private var lookupTask: Task<Void, Never>?
+    private var glossaryRefreshTask: Task<Void, Never>?
     private var pendingProductForOCR: NormalizedProduct?
 
     init(
@@ -68,9 +69,6 @@ final class ScanViewModel: ObservableObject {
 
         do {
             try dataStore.bootstrapGlossaryIfNeeded()
-            if let remoteGlossary = try? await productBackend.glossaryItems(), !remoteGlossary.isEmpty {
-                try dataStore.replaceGlossaryItems(remoteGlossary)
-            }
             ingredientAnalyzer.updateGlossary(try dataStore.glossaryItems())
             latestSnapshot = try dataStore.latestSnapshot()
             premiumUnlocked = try dataStore.isPremiumUnlocked()
@@ -81,6 +79,11 @@ final class ScanViewModel: ObservableObject {
         cameraController.requestAccessIfNeeded()
         if cameraController.authorizationStatus == .authorized {
             status = .scanning
+        }
+
+        glossaryRefreshTask?.cancel()
+        glossaryRefreshTask = Task { [weak self] in
+            await self?.refreshRemoteGlossary()
         }
     }
 
@@ -195,6 +198,22 @@ final class ScanViewModel: ObservableObject {
             } else {
                 status = .error("Showing the cached result because live refresh failed.")
             }
+        }
+    }
+
+    private func refreshRemoteGlossary() async {
+        guard let remoteGlossary = try? await productBackend.glossaryItems(),
+              !Task.isCancelled,
+              !remoteGlossary.isEmpty
+        else {
+            return
+        }
+
+        do {
+            try dataStore.replaceGlossaryItems(remoteGlossary)
+            ingredientAnalyzer.updateGlossary(try dataStore.glossaryItems())
+        } catch {
+            // Keep the bundled glossary if the remote refresh cannot be persisted.
         }
     }
 
