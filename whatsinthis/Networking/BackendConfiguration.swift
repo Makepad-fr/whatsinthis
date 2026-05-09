@@ -14,7 +14,7 @@ enum BackendConfiguration {
         let value = (bundle.object(forInfoDictionaryKey: "WhatsInThisBackendBaseURL") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if let value, !value.isEmpty, let url = URL(string: value) {
+        if let value, !value.isEmpty, let url = URL(string: value), isValidBackendURL(url) {
             return url
         }
 
@@ -23,6 +23,17 @@ enum BackendConfiguration {
         #else
         return nil
         #endif
+    }
+
+    private static func isValidBackendURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host,
+              !host.isEmpty
+        else {
+            return false
+        }
+        return true
     }
 }
 
