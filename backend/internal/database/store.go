@@ -124,11 +124,20 @@ func (s *Store) UpsertGlossaryItems(ctx context.Context, items []product.Glossar
 	defer tx.Rollback()
 
 	for _, item := range items {
-		aliases, err := json.Marshal(item.Aliases)
+		aliasesValue := item.Aliases
+		if aliasesValue == nil {
+			aliasesValue = []string{}
+		}
+		markersValue := item.Markers
+		if markersValue == nil {
+			markersValue = []string{}
+		}
+
+		aliases, err := json.Marshal(aliasesValue)
 		if err != nil {
 			return fmt.Errorf("encode aliases for %s: %w", item.ID, err)
 		}
-		markers, err := json.Marshal(item.Markers)
+		markers, err := json.Marshal(markersValue)
 		if err != nil {
 			return fmt.Errorf("encode markers for %s: %w", item.ID, err)
 		}
@@ -188,6 +197,12 @@ func (s *Store) GlossaryItems(ctx context.Context) ([]product.GlossaryItem, erro
 		}
 		if err := json.Unmarshal(markers, &item.Markers); err != nil {
 			return nil, fmt.Errorf("decode glossary markers: %w", err)
+		}
+		if item.Aliases == nil {
+			item.Aliases = []string{}
+		}
+		if item.Markers == nil {
+			item.Markers = []string{}
 		}
 		item.Category = product.ProductCategory(category)
 		items = append(items, item)
