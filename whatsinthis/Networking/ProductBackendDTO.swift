@@ -173,36 +173,54 @@ struct HTTPProductBackendTransport: ProductBackendTransport {
 
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         encoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
-            try container.encode(formatter.string(from: date))
+            try container.encode(encodedDateString(from: date))
         }
         return encoder
     }
 
     private static var decoder: JSONDecoder {
         let decoder = JSONDecoder()
-        let fractionalSecondsFormatter = ISO8601DateFormatter()
-        fractionalSecondsFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let internetDateTimeFormatter = ISO8601DateFormatter()
-        internetDateTimeFormatter.formatOptions = [.withInternetDateTime]
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             if let timestamp = try? container.decode(Double.self) {
                 return Date(timeIntervalSince1970: timestamp)
             }
             let value = try container.decode(String.self)
-            if let date = fractionalSecondsFormatter.date(from: value) {
-                return date
-            }
-            if let date = internetDateTimeFormatter.date(from: value) {
+            if let date = decodedDate(from: value) {
                 return date
             }
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid backend date: \(value)")
         }
         return decoder
+    }
+
+    private static let dateFormatterLock = NSLock()
+    private static let fractionalSecondsFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    private static let internetDateTimeFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    private static func encodedDateString(from date: Date) -> String {
+        dateFormatterLock.lock()
+        defer { dateFormatterLock.unlock() }
+
+        return fractionalSecondsFormatter.string(from: date)
+    }
+
+    private static func decodedDate(from value: String) -> Date? {
+        dateFormatterLock.lock()
+        defer { dateFormatterLock.unlock() }
+
+        return fractionalSecondsFormatter.date(from: value)
+            ?? internetDateTimeFormatter.date(from: value)
     }
 }
 
