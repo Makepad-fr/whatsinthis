@@ -83,11 +83,19 @@ final class DataStore {
 
     func replaceGlossaryItemsInBackground(_ items: [IngredientGlossaryItem]) async throws {
         let container = modelContainer
+        let task = Task.detached(priority: .utility) {
+            try Task.checkCancellation()
 
-        try await Task.detached(priority: .utility) {
             let context = ModelContext(container)
+            try Task.checkCancellation()
             try Self.replaceGlossaryItems(items, context: context)
-        }.value
+        }
+
+        try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 
     nonisolated private static func replaceGlossaryItems(_ items: [IngredientGlossaryItem], context: ModelContext) throws {
