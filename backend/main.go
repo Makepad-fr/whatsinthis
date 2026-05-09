@@ -32,6 +32,10 @@ func main() {
 		log.Fatalf("open database: %v", err)
 	}
 	defer db.Close()
+	db.SetMaxOpenConns(cfg.DBMaxOpenConns)
+	db.SetMaxIdleConns(cfg.DBMaxIdleConns)
+	db.SetConnMaxLifetime(cfg.DBConnLifetime)
+	db.SetConnMaxIdleTime(cfg.DBConnIdleTime)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

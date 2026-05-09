@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -16,6 +17,10 @@ type Config struct {
 	CacheTTL        time.Duration
 	SimilarCacheTTL time.Duration
 	ProviderTimeout time.Duration
+	DBMaxOpenConns  int
+	DBMaxIdleConns  int
+	DBConnLifetime  time.Duration
+	DBConnIdleTime  time.Duration
 }
 
 func Load() (Config, error) {
@@ -40,6 +45,10 @@ func Load() (Config, error) {
 		CacheTTL:        envDuration("WHATSINTHIS_PRODUCT_CACHE_TTL", 30*24*time.Hour),
 		SimilarCacheTTL: envDuration("WHATSINTHIS_SIMILAR_CACHE_TTL", 24*time.Hour),
 		ProviderTimeout: envDuration("WHATSINTHIS_PROVIDER_TIMEOUT", 6*time.Second),
+		DBMaxOpenConns:  envInt("WHATSINTHIS_DB_MAX_OPEN_CONNS", 20),
+		DBMaxIdleConns:  envInt("WHATSINTHIS_DB_MAX_IDLE_CONNS", 10),
+		DBConnLifetime:  envDuration("WHATSINTHIS_DB_CONN_MAX_LIFETIME", 30*time.Minute),
+		DBConnIdleTime:  envDuration("WHATSINTHIS_DB_CONN_MAX_IDLE_TIME", 5*time.Minute),
 	}, nil
 }
 
@@ -78,4 +87,16 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return duration
+}
+
+func envInt(key string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
+		return fallback
+	}
+	return parsed
 }
