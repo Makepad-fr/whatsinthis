@@ -28,7 +28,7 @@ enum TestSupport {
     }
 }
 
-struct RecommendationProductBackendStub: ProductBackend {
+struct RecommendationProductBackendStub: ProductBackend, @unchecked Sendable {
     let similarProductsResult: [NormalizedProduct]
     var similarProductsError: Error? = nil
     var lookupResult = ProductLookupResult(product: nil, message: nil)
