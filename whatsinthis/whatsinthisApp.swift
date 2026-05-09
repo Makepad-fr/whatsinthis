@@ -22,11 +22,12 @@ struct whatsinthisApp: App {
         let visionProcessor = VisionProcessor()
         let imageRepository = ProductImageRepository(dataStore: dataStore)
         let productService = ProductService(configuration: .live())
+        let productBackend = ProviderProductBackend(productService: productService)
 
         _scanViewModel = StateObject(
             wrappedValue: ScanViewModel(
                 dataStore: dataStore,
-                productService: productService,
+                productBackend: productBackend,
                 ingredientAnalyzer: analyzer,
                 visionProcessor: visionProcessor,
                 imageRepository: imageRepository

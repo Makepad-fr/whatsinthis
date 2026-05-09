@@ -49,14 +49,11 @@ struct ProductDetailView: View {
 
                 CompactIngredientsCardView(
                     rows: viewModel.ingredientRows,
-                    countLabel: viewModel.ingredientCountLabel,
-                    showsLearnMode: showsLearnMode
+                    countLabel: viewModel.ingredientCountLabel
                 ) { token in
                     selectedIngredient = token
-                } onToggleLearnMode: {
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        showsLearnMode.toggle()
-                    }
+                } onOpenLearnMode: {
+                    showsLearnMode = true
                 }
 
             }
@@ -70,6 +67,14 @@ struct ProductDetailView: View {
         .sheet(item: $selectedIngredient) { token in
             IngredientDetailView(token: token)
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showsLearnMode) {
+            LearnModeView(
+                productName: viewModel.product.name,
+                metadata: viewModel.headerMetadata,
+                rows: viewModel.ingredientRows,
+                countLabel: viewModel.ingredientCountLabel
+            )
         }
         .navigationDestination(item: $selectedRecommendedProduct) { product in
             ProductDetailView(

@@ -671,7 +671,7 @@ struct whatsinthisTests {
         let viewModel = ProductDetailViewModel(
             analyzedProduct: analyzed,
             imageRepository: ProductImageRepository(dataStore: try makeInMemoryDataStore()),
-            productService: RecommendationProductServiceStub(similarProductsResult: [betterAlternative]),
+            productBackend: RecommendationProductBackendStub(similarProductsResult: [betterAlternative]),
             ingredientAnalyzer: analyzer
         )
 
@@ -776,13 +776,13 @@ struct whatsinthisTests {
         let viewModel = ProductDetailViewModel(
             analyzedProduct: analyzed,
             imageRepository: ProductImageRepository(dataStore: try makeInMemoryDataStore()),
-            productService: RecommendationProductServiceStub(similarProductsResult: [apricotAlternative, strawberryAlternative]),
+            productBackend: RecommendationProductBackendStub(similarProductsResult: [apricotAlternative, strawberryAlternative]),
             ingredientAnalyzer: analyzer
         )
 
         await viewModel.loadSwapRecommendationsIfNeeded()
 
-        #expect(viewModel.swapSectionTitle == "Similar options")
+        #expect(viewModel.swapSectionTitle == "Compare with similar products")
         #expect(viewModel.swapRecommendations.count == 1)
         #expect(viewModel.swapRecommendations.first?.title == "Confiture extra de fraises")
     }
@@ -852,7 +852,7 @@ struct whatsinthisTests {
         let viewModel = ProductDetailViewModel(
             analyzedProduct: analyzed,
             imageRepository: ProductImageRepository(dataStore: try makeInMemoryDataStore()),
-            productService: RecommendationProductServiceStub(similarProductsResult: [betterAlternative]),
+            productBackend: RecommendationProductBackendStub(similarProductsResult: [betterAlternative]),
             ingredientAnalyzer: analyzer
         )
 
@@ -927,13 +927,13 @@ struct whatsinthisTests {
         let viewModel = ProductDetailViewModel(
             analyzedProduct: analyzed,
             imageRepository: ProductImageRepository(dataStore: try makeInMemoryDataStore()),
-            productService: RecommendationProductServiceStub(similarProductsResult: [similarAlternative]),
+            productBackend: RecommendationProductBackendStub(similarProductsResult: [similarAlternative]),
             ingredientAnalyzer: analyzer
         )
 
         await viewModel.loadSwapRecommendationsIfNeeded()
 
-        #expect(viewModel.swapSectionTitle == "Similar options")
+        #expect(viewModel.swapSectionTitle == "Compare with similar products")
         #expect(viewModel.swapRecommendations.count == 1)
         #expect(viewModel.swapRecommendations.first?.presentation == .similar)
     }
@@ -975,7 +975,7 @@ struct whatsinthisTests {
         let viewModel = ProductDetailViewModel(
             analyzedProduct: analyzed,
             imageRepository: ProductImageRepository(dataStore: try makeInMemoryDataStore()),
-            productService: RecommendationProductServiceStub(
+            productBackend: RecommendationProductBackendStub(
                 similarProductsResult: [],
                 similarProductsError: SimilarProductsLookupError.serviceUnavailable
             ),
@@ -985,7 +985,7 @@ struct whatsinthisTests {
         await viewModel.loadSwapRecommendationsIfNeeded()
 
         #expect(viewModel.swapRecommendations.isEmpty)
-        #expect(viewModel.swapSectionTitle == "Similar options")
+        #expect(viewModel.swapSectionTitle == "Compare with similar products")
         #expect(viewModel.swapSectionEmptyMessage?.contains("temporarily unavailable") == true)
         #expect(viewModel.swapSectionEmptyMessage?.contains("compare manually") == true)
     }
@@ -1062,7 +1062,7 @@ struct whatsinthisTests {
         let viewModel = ProductDetailViewModel(
             analyzedProduct: analyzed,
             imageRepository: repository,
-            productService: RecommendationProductServiceStub(
+            productBackend: RecommendationProductBackendStub(
                 similarProductsResult: [],
                 similarProductsError: SimilarProductsLookupError.serviceUnavailable
             ),
@@ -1072,7 +1072,7 @@ struct whatsinthisTests {
         await viewModel.loadSwapRecommendationsIfNeeded()
 
         #expect(viewModel.swapRecommendations.count == 1)
-        #expect(viewModel.swapSectionTitle == "Swap ideas")
+        #expect(viewModel.swapSectionTitle == "Compare with similar products")
         #expect(viewModel.swapRecommendations.first?.title == "Confiture extra de figues")
         #expect(viewModel.swapSectionEmptyMessage == nil)
     }
@@ -1149,7 +1149,7 @@ struct whatsinthisTests {
         let viewModel = ProductDetailViewModel(
             analyzedProduct: analyzed,
             imageRepository: repository,
-            productService: RecommendationProductServiceStub(
+            productBackend: RecommendationProductBackendStub(
                 similarProductsResult: [],
                 similarProductsError: SimilarProductsLookupError.serviceUnavailable
             ),
@@ -1159,7 +1159,7 @@ struct whatsinthisTests {
         await viewModel.loadSwapRecommendationsIfNeeded()
 
         #expect(viewModel.swapRecommendations.isEmpty)
-        #expect(viewModel.swapSectionTitle == "Similar options")
+        #expect(viewModel.swapSectionTitle == "Compare with similar products")
         #expect(viewModel.swapSectionEmptyMessage?.contains("temporarily unavailable") == true)
         #expect(viewModel.swapSectionEmptyMessage?.contains("jam or preserve") == true)
     }
@@ -1175,33 +1175,5 @@ struct whatsinthisTests {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: configuration)
         return DataStore(modelContainer: container)
-    }
-}
-
-private struct RecommendationProductServiceStub: ProductServicing {
-    let similarProductsResult: [NormalizedProduct]
-    var similarProductsError: Error? = nil
-
-    func lookupProduct(barcode: String, locale: Locale) async throws -> ProductLookupResult {
-        ProductLookupResult(product: nil, message: nil)
-    }
-
-    func lookupFoodOFF(barcode: String) async throws -> NormalizedProduct? {
-        nil
-    }
-
-    func lookupBeautyOBF(barcode: String) async throws -> NormalizedProduct? {
-        nil
-    }
-
-    func lookupUSDA(barcode: String) async throws -> NormalizedProduct? {
-        nil
-    }
-
-    func similarProducts(for product: NormalizedProduct, limit: Int) async throws -> [NormalizedProduct] {
-        if let similarProductsError {
-            throw similarProductsError
-        }
-        Array(similarProductsResult.prefix(limit))
     }
 }

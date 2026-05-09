@@ -71,7 +71,7 @@ struct ScanView: View {
                 viewModel: ProductDetailViewModel(
                     analyzedProduct: product,
                     imageRepository: viewModel.imageRepository,
-                    productService: viewModel.productService,
+                    productBackend: viewModel.productBackend,
                     ingredientAnalyzer: viewModel.ingredientAnalyzer
                 )
             )

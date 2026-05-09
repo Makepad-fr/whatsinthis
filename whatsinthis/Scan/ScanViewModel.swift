@@ -7,7 +7,6 @@
 
 import AVFoundation
 import Combine
-import SwiftUI
 import UIKit
 
 @MainActor
@@ -21,7 +20,7 @@ final class ScanViewModel: ObservableObject {
 
     let cameraController = CameraSessionController()
     let imageRepository: ProductImageRepository
-    let productService: ProductServicing
+    let productBackend: ProductBackend
     let ingredientAnalyzer: IngredientAnalyzer
 
     private let dataStore: DataStore
@@ -33,13 +32,13 @@ final class ScanViewModel: ObservableObject {
 
     init(
         dataStore: DataStore,
-        productService: ProductServicing,
+        productBackend: ProductBackend,
         ingredientAnalyzer: IngredientAnalyzer,
         visionProcessor: VisionProcessor,
         imageRepository: ProductImageRepository
     ) {
         self.dataStore = dataStore
-        self.productService = productService
+        self.productBackend = productBackend
         self.ingredientAnalyzer = ingredientAnalyzer
         self.visionProcessor = visionProcessor
         self.imageRepository = imageRepository
@@ -162,7 +161,9 @@ final class ScanViewModel: ObservableObject {
         }
 
         do {
-            let result = try await productService.lookupProduct(barcode: barcode, locale: .current)
+            let result = try await productBackend.lookupProduct(
+                ProductLookupRequest(barcode: barcode, locale: .current)
+            )
             guard let product = result.product else {
                 pendingProductForOCR = nil
                 status = .needsOCR(result.message ?? "No product match was found.")
