@@ -1,0 +1,8 @@
+# Local development defaults only. The PostgreSQL URL below matches envs/local/.env.db.
+WHATSINTHIS_HTTP_PORT=8080
+WHATSINTHIS_DATABASE_URL=postgres://whatsinthis:whatsinthis@db:5432/whatsinthis?sslmode=disable
+WHATSINTHIS_USDA_API_KEY=
+WHATSINTHIS_DB_MAX_OPEN_CONNS=10
+WHATSINTHIS_DB_MAX_IDLE_CONNS=5
+WHATSINTHIS_DB_CONN_MAX_LIFETIME=30m
+WHATSINTHIS_DB_CONN_MAX_IDLE_TIME=5m

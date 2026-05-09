@@ -1,0 +1,52 @@
+name: Backend Tag Publish
+
+on:
+  push:
+    tags:
+      - "backend/v[0-9]*"
+
+env:
+  IMAGE_NAME: ghcr.io/makepad-fr/whatsinthis-backend
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag commit is on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Retag immutable image for backend release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#backend/v}"
+          if [[ ! "${version}" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "Backend tag must look like backend/v1, backend/v1.2, or backend/v1.2.3: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          docker buildx imagetools inspect "${IMAGE_NAME}:${GITHUB_SHA}" >/dev/null
+          docker buildx imagetools create \
+            --tag "${IMAGE_NAME}:${version}" \
+            "${IMAGE_NAME}:${GITHUB_SHA}"

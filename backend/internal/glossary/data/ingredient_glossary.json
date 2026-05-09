@@ -1,0 +1,202 @@
+[
+  {
+    "id": "sugar",
+    "name": "Sugar",
+    "aliases": ["sucrose", "cane sugar", "sucre", "sucre blanc"],
+    "category": "food",
+    "summary": "Sugar is a sweetener used for taste, texture, and preservation.",
+    "function": "It adds sweetness and can help balance acidity or support shelf life.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "brown-cane-sugar",
+    "name": "Brown Cane Sugar",
+    "aliases": ["sucre roux de canne", "brown cane sugar", "cane sugar"],
+    "category": "food",
+    "summary": "Brown cane sugar is a less-refined sugar used for sweetness and flavor.",
+    "function": "It sweetens the product and can add a deeper caramel-like taste.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "salt",
+    "name": "Salt",
+    "aliases": ["sodium chloride"],
+    "category": "food",
+    "summary": "Salt is a mineral seasoning used for flavor and preservation.",
+    "function": "It boosts flavor and can help preserve packaged foods.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "citric-acid",
+    "name": "Citric Acid",
+    "aliases": ["e330"],
+    "category": "food",
+    "summary": "Citric acid is commonly used to adjust acidity and stabilize flavor.",
+    "function": "It helps control tartness and can support freshness in packaged foods.",
+    "caution": true,
+    "markers": ["additive"]
+  },
+  {
+    "id": "soy-lecithin",
+    "name": "Soy Lecithin",
+    "aliases": ["lecithin", "e322"],
+    "category": "food",
+    "summary": "Soy lecithin is an emulsifier that helps oil and water stay mixed.",
+    "function": "It improves texture and consistency in chocolate, sauces, and baked goods.",
+    "caution": true,
+    "markers": ["additive", "allergen"]
+  },
+  {
+    "id": "whey",
+    "name": "Whey",
+    "aliases": ["whey powder", "milk solids"],
+    "category": "food",
+    "summary": "Whey is a milk-derived ingredient used for protein, texture, or flavor.",
+    "function": "It can add dairy solids, body, or protein to packaged foods.",
+    "caution": true,
+    "markers": ["allergen"]
+  },
+  {
+    "id": "natural-flavor",
+    "name": "Natural Flavor",
+    "aliases": ["natural flavours", "natural flavors"],
+    "category": "food",
+    "summary": "Natural flavor is a label term for flavoring ingredients derived from natural sources.",
+    "function": "It is used to shape or reinforce taste, but labels rarely list the full flavor blend.",
+    "caution": true,
+    "markers": ["additive", "processing"]
+  },
+  {
+    "id": "modified-starch",
+    "name": "Modified Starch",
+    "aliases": ["modified corn starch", "modified starch"],
+    "category": "food",
+    "summary": "Modified starch is processed to change how it thickens or stabilizes food.",
+    "function": "It can improve texture, prevent separation, or help sauces stay smooth.",
+    "caution": true,
+    "markers": ["additive", "processing"]
+  },
+  {
+    "id": "radish",
+    "name": "Radish",
+    "aliases": ["radishes", "radis", "radis rouges"],
+    "category": "food",
+    "summary": "Radish is a root vegetable commonly eaten raw for its crisp texture and peppery taste.",
+    "function": "It is a whole-food ingredient rather than an additive or processing aid.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "fig",
+    "name": "Fig",
+    "aliases": ["figs", "figue", "figues", "figues violettes"],
+    "category": "food",
+    "summary": "Fig is a fruit used for sweetness, texture, and fruit flavor.",
+    "function": "It is a whole-fruit ingredient rather than an additive.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "black-pepper",
+    "name": "Black Pepper",
+    "aliases": ["pepper", "ground black pepper", "poivre gris", "poivre noir", "poivre gris moulu"],
+    "category": "food",
+    "summary": "Black pepper is a spice made from dried peppercorns and used for flavor.",
+    "function": "It is a straightforward seasoning ingredient, not a food additive.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "concentrated-lemon-juice",
+    "name": "Concentrated Lemon Juice",
+    "aliases": ["concentrated lemon juice", "jus de citron concentre", "jus de citrons concentre", "jus de citron concentré", "jus de citrons concentré"],
+    "category": "food",
+    "summary": "Concentrated lemon juice is used for acidity and brightness.",
+    "function": "It can balance sweetness and help preserve flavor in fruit products.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "fruit-pectin",
+    "name": "Fruit Pectin",
+    "aliases": ["pectin", "fruit pectin", "pectine de fruits", "gelifiant pectine de fruits", "gélifiant pectine de fruits"],
+    "category": "food",
+    "summary": "Fruit pectin is a gelling fiber commonly used in jams and fruit preserves.",
+    "function": "It helps fruit mixtures set into a spreadable texture.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "aqua",
+    "name": "Aqua",
+    "aliases": ["water"],
+    "category": "beauty",
+    "summary": "Aqua is water, often used as the main solvent in personal care products.",
+    "function": "It dissolves or carries other ingredients in lotions, cleansers, and serums.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "glycerin",
+    "name": "Glycerin",
+    "aliases": ["glycerine"],
+    "category": "beauty",
+    "summary": "Glycerin is a humectant that helps draw water to the skin or hair.",
+    "function": "It is commonly used to support moisture retention in beauty formulas.",
+    "caution": false,
+    "markers": []
+  },
+  {
+    "id": "parfum",
+    "name": "Parfum",
+    "aliases": ["fragrance", "perfume"],
+    "category": "beauty",
+    "summary": "Parfum is a label term for fragrance blends used to scent a product.",
+    "function": "It adds scent, but labels usually do not list each fragrance component individually.",
+    "caution": true,
+    "markers": ["fragrance"]
+  },
+  {
+    "id": "phenoxyethanol",
+    "name": "Phenoxyethanol",
+    "aliases": [],
+    "category": "beauty",
+    "summary": "Phenoxyethanol is a preservative used to help keep formulas stable.",
+    "function": "It helps reduce microbial growth in lotions, cleansers, and makeup.",
+    "caution": true,
+    "markers": ["preservative"]
+  },
+  {
+    "id": "sodium-laureth-sulfate",
+    "name": "Sodium Laureth Sulfate",
+    "aliases": ["sles"],
+    "category": "beauty",
+    "summary": "Sodium laureth sulfate is a cleansing surfactant used in wash-off products.",
+    "function": "It helps water lift oils and dirt away from skin or hair.",
+    "caution": true,
+    "markers": ["surfactant"]
+  },
+  {
+    "id": "alcohol-denat",
+    "name": "Alcohol Denat.",
+    "aliases": ["denat alcohol", "alcohol denat"],
+    "category": "beauty",
+    "summary": "Denatured alcohol is used as a fast-evaporating solvent in some beauty products.",
+    "function": "It can help formulas dry quickly or feel lighter on the skin.",
+    "caution": true,
+    "markers": ["irritant"]
+  },
+  {
+    "id": "tocopherol",
+    "name": "Tocopherol",
+    "aliases": ["vitamin e"],
+    "category": "beauty",
+    "summary": "Tocopherol is a form of vitamin E used as an antioxidant in formulas.",
+    "function": "It can help support stability by slowing oxidation in oils and emulsions.",
+    "caution": false,
+    "markers": []
+  }
+]
