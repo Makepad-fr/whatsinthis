@@ -91,8 +91,7 @@ final class ScanViewModel: ObservableObject {
                 return
             }
 
-            let persistencePayload = try? JSONEncoder().encode(remoteGlossary)
-            await self?.applyRemoteGlossary(remoteGlossary, persistencePayload: persistencePayload)
+            await self?.applyRemoteGlossary(remoteGlossary)
         }
     }
 
@@ -210,12 +209,10 @@ final class ScanViewModel: ObservableObject {
         }
     }
 
-    private func applyRemoteGlossary(_ remoteGlossary: [IngredientGlossaryItem], persistencePayload: Data?) async {
+    private func applyRemoteGlossary(_ remoteGlossary: [IngredientGlossaryItem]) async {
         do {
             ingredientAnalyzer.updateGlossary(remoteGlossary)
-            if let persistencePayload {
-                try await dataStore.replaceGlossaryItemsPayloadInBackground(persistencePayload)
-            }
+            try await dataStore.replaceGlossaryItemsInBackground(remoteGlossary)
         } catch {
             // Keep the existing persisted fallback if the remote glossary cannot be saved.
         }
