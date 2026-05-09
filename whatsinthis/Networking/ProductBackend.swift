@@ -27,7 +27,7 @@ enum SimilarProductsLookupError: Error, Equatable, LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .serviceUnavailable:
-            return "Similar products are temporarily unavailable from Open Food Facts right now."
+            return "Similar products are temporarily unavailable right now."
         case .rateLimited:
             return "Similar product lookups are temporarily rate-limited."
         case .unavailable:
