@@ -1,8 +1,3 @@
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version text PRIMARY KEY,
-    applied_at timestamptz NOT NULL DEFAULT now()
-);
-
 CREATE TABLE IF NOT EXISTS product_cache (
     key text PRIMARY KEY,
     payload jsonb NOT NULL,
