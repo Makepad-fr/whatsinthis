@@ -13,7 +13,11 @@ enum OpenPanelAnalytics {
         track("app_closed")
     }
 
-    static func track(_ name: String, properties: [String: String] = [:]) {
+    static func track(
+        _ name: String,
+        properties: [String: String] = [:],
+        session: URLSession = .shared
+    ) {
         guard !isDisabled else {
             return
         }
@@ -47,7 +51,7 @@ enum OpenPanelAnalytics {
         request.setValue("1", forHTTPHeaderField: "openpanel-sdk-version")
         request.setValue(origin, forHTTPHeaderField: "Origin")
 
-        URLSession.shared.dataTask(with: request).resume()
+        session.dataTask(with: request).resume()
     }
 
     private static var isDisabled: Bool {

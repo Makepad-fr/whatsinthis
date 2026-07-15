@@ -11,6 +11,7 @@ import SwiftUI
 @main
 struct whatsinthisApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    @State private var hasTrackedOpen = false
 
     private let modelContainer: ModelContainer
     @StateObject private var scanViewModel: ScanViewModel
@@ -40,19 +41,32 @@ struct whatsinthisApp: App {
                 imageRepository: imageRepository
             )
         )
-
-        OpenPanelAnalytics.trackAppOpened()
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView(viewModel: scanViewModel)
-                .onChange(of: scenePhase) { phase in
-                    if phase == .background {
+                .onAppear {
+                    trackOpenedIfNeeded()
+                }
+                .onChange(of: scenePhase) { oldPhase, newPhase in
+                    if newPhase == .active {
+                        trackOpenedIfNeeded()
+                    }
+                    if oldPhase == .active && newPhase == .background {
+                        hasTrackedOpen = false
                         OpenPanelAnalytics.trackAppClosed()
                     }
                 }
         }
         .modelContainer(modelContainer)
+    }
+
+    private func trackOpenedIfNeeded() {
+        guard !hasTrackedOpen else {
+            return
+        }
+        hasTrackedOpen = true
+        OpenPanelAnalytics.trackAppOpened()
     }
 }
