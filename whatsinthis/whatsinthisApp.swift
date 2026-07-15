@@ -49,13 +49,14 @@ struct whatsinthisApp: App {
                 .onAppear {
                     trackOpenedIfNeeded()
                 }
-                .onChange(of: scenePhase) { oldPhase, newPhase in
-                    if newPhase == .active {
+                .onChange(of: scenePhase) { _, newPhase in
+                    switch newPhase {
+                    case .active:
                         trackOpenedIfNeeded()
-                    }
-                    if oldPhase == .active && newPhase == .background {
-                        hasTrackedOpen = false
-                        OpenPanelAnalytics.trackAppClosed()
+                    case .background:
+                        trackClosedIfNeeded()
+                    default:
+                        break
                     }
                 }
         }
@@ -68,5 +69,13 @@ struct whatsinthisApp: App {
         }
         hasTrackedOpen = true
         OpenPanelAnalytics.trackAppOpened()
+    }
+
+    private func trackClosedIfNeeded() {
+        guard hasTrackedOpen else {
+            return
+        }
+        hasTrackedOpen = false
+        OpenPanelAnalytics.trackAppClosed()
     }
 }
