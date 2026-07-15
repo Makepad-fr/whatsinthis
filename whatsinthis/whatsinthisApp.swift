@@ -10,6 +10,8 @@ import SwiftUI
 
 @main
 struct whatsinthisApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     private let modelContainer: ModelContainer
     @StateObject private var scanViewModel: ScanViewModel
 
@@ -38,11 +40,18 @@ struct whatsinthisApp: App {
                 imageRepository: imageRepository
             )
         )
+
+        OpenPanelAnalytics.trackAppOpened()
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView(viewModel: scanViewModel)
+                .onChange(of: scenePhase) { phase in
+                    if phase == .background {
+                        OpenPanelAnalytics.trackAppClosed()
+                    }
+                }
         }
         .modelContainer(modelContainer)
     }
